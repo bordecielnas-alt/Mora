@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mora</title>
+<meta name="theme-color" content="#0E6B6F">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/themes.css">
+<script>/* applique le thème avant l'affichage, pour éviter un flash */try{const l=JSON.parse(localStorage.getItem("mora-look")||"{}");if(l.mode&&l.mode!=="auto")document.documentElement.dataset.theme=l.mode;if(l.palette&&l.palette!=="lagune")document.documentElement.dataset.palette=l.palette}catch{}</script>
+<style>html,body{margin:0}.app{padding-top:env(safe-area-inset-top,0px)}</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 20 L50 41 L76 20 V80 H58 L50 68 L42 80 H24 Z" fill="currentColor" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/></svg>
+      Mora
+    </div>
+    <div class="headbtns">
+      <button class="iconbtn" id="questBtn" aria-label="Recherche ponctuelle" title="Recherche ponctuelle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+      <button class="iconbtn" id="refreshBtn" aria-label="Chercher de nouveaux contenus" title="Chercher de nouveaux contenus">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="view" id="v-tri">
+      <div class="newbar" id="newbar" hidden></div>
+      <div class="row"><h2>Pour toi</h2><span class="mono" id="count"></span></div>
+      <p class="sub">Fais défiler. ♥ J’aime pour dire ce qui te plaît, le signet pour garder, « Pas pour moi » pour masquer. Touche l’image pour ouvrir le contenu, double-tape pour aimer.</p>
+      <div class="filters timef" id="timeFilter" aria-label="Temps disponible">
+        <span class="lbl">J’ai</span><button data-min="0">Tout le temps</button><button data-min="5">5 min</button><button data-min="15">15 min</button><button data-min="45">45 min</button></div>
+      <div id="banner"></div>
+      <div class="stream" id="stream"></div>
+      <div class="more" id="more"></div>
+    </section>
+
+    <section class="view" id="v-feed" hidden>
+      <div class="row"><h2>Gardés</h2><span class="rowr"><span class="mono" id="feedcount"></span><a class="linkbtn" href="/api/kept/export.md" download title="Tous tes gardés et tes notes, en Markdown (Obsidian, Notion…)">Exporter</a></span></div>
+      <p class="sub">Ce que tu as gardé. Touche un contenu pour l'affiner.</p>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="keptSearch" type="search" placeholder="Rechercher dans mes gardés" autocomplete="off" aria-label="Rechercher dans mes gardés"></div>
+      <div class="filters" id="themeFilters" aria-label="Filtrer par centre d’intérêt"></div>
+      <div class="filters small-f" id="filters" aria-label="Filtrer par format"></div>
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <section class="view" id="v-quest" hidden>
+      <h2>Recherche ponctuelle</h2>
+      <p class="sub">Une envie précise, sans créer de thème. Ex. « les JO d’hiver cette semaine ».</p>
+      <form class="addtheme quest-form" id="questForm"><input id="questIn" placeholder="Trouve-moi…" autocomplete="off" maxlength="200"><button class="btn" type="submit">Chercher</button></form>
+      <div id="questList"></div>
+    </section>
+
+    <section class="view" id="v-stats" hidden>
+      <div class="row"><h2>Stats</h2><span class="mono" id="statsCount"></span></div>
+      <p class="sub">Ce que le feed a compris de tes goûts, à partir de tes J’aime, Gardés et « Pas pour moi ».</p>
+      <div id="stats"></div>
+    </section>
+
+    <section class="view" id="v-themes" hidden>
+      <h2>Réglages</h2>
+      <div class="block" id="accountBlock"></div>
+
+      <h2 class="h3">Mes thèmes</h2>
+      <p class="sub">L'IA cherche sur le web à partir de ces thèmes.</p>
+      <div class="block">
+        <div class="themes" id="themes"></div>
+        <form class="addtheme" id="addForm">
+          <input id="newTheme" placeholder="Ajouter un thème, ex. architecture" autocomplete="off">
+          <button class="btn" type="submit">Ajouter</button>
+        </form>
+        <div id="suggList"></div>
+      </div>
+
+      <h2 class="h3">Mes règles</h2>
+      <p class="sub">Tes choix à toi, en plus de ce que le feed apprend.</p>
+      <div class="block prefs" id="rulePrefs"></div>
+
+      <h2 class="h3">Ce que l’IA cherche</h2>
+      <p class="sub">Pris en compte dès la prochaine recherche.</p>
+      <div class="block prefs" id="searchPrefs"></div>
+
+      <h2 class="h3">Apparence</h2>
+      <div class="block prefs" id="lookPrefs"></div>
+
+      <h2 class="h3">Masqués</h2>
+      <p class="sub">Ce que tu as masqué ces 15 derniers jours. Tu peux le remettre dans ton fil.</p>
+      <div class="block" id="hiddenList"></div>
+
+      <div class="block"><p class="small" id="statusLine"></p></div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-v="tri" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg>
+      Pour toi</button>
+    <button role="tab" data-v="feed" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      Gardés</button>
+    <button role="tab" data-v="stats" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20v-8M10 20V5M15 20v-6M20 20V9"/></svg>
+      Stats</button>
+    <button role="tab" data-v="themes" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      Réglages</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/app.js" type="module"></script>
+</body>
+</html>

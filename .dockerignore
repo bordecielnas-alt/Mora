@@ -1,0 +1,10 @@
+node_modules
+data
+.env
+.git
+.github
+unraid
+*.zip
+*.bat
+README.md
+docker-compose.yml

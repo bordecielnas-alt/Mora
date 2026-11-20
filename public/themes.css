@@ -1,0 +1,63 @@
+/* Thèmes de couleur de Mora (palettes).
+   Utilisation : <html data-palette="mure"> ; sans attribut = « Lagune » (valeurs de styles.css).
+   Le mode clair/sombre reste piloté par data-theme="light|dark" (ou le système).
+   Charger ce fichier APRÈS styles.css. --theme-color sert pour <meta name="theme-color">. */
+:root{--theme-color:#0E6B6F}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--theme-color:#0F171D}}
+:root[data-theme="dark"]{--theme-color:#0F171D}
+
+/* --- Mûre : prune profonde, le fruit qui donne son nom à l'app --- */
+:root[data-palette="mure"]{
+  --bg:#F2EEF1; --surface:#FFFFFF; --sunk:#E6DEE4; --ink:#22131E; --muted:#6B5866;
+  --line:#D6CAD3; --accent:#6E2A5E; --accent-ink:#FFFFFF; --keep:#2C7A4B; --toss:#C2412D;
+  --shadow:0 10px 30px rgba(34,19,30,.14); --theme-color:#6E2A5E}
+@media (prefers-color-scheme: dark){:root[data-palette="mure"]:not([data-theme="light"]){
+  --bg:#140D13; --surface:#1F151D; --sunk:#2B1F28; --ink:#F2E9EF; --muted:#A8949F;
+  --line:#3A2B36; --accent:#E39BCF; --accent-ink:#2B0D22; --keep:#5CC98A; --toss:#F07A63;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#140D13; color-scheme:dark}}
+:root[data-palette="mure"][data-theme="dark"]{
+  --bg:#140D13; --surface:#1F151D; --sunk:#2B1F28; --ink:#F2E9EF; --muted:#A8949F;
+  --line:#3A2B36; --accent:#E39BCF; --accent-ink:#2B0D22; --keep:#5CC98A; --toss:#F07A63;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#140D13; color-scheme:dark}
+
+/* --- Papier : gris-beige de journal, encre bleue de stylo-plume --- */
+:root[data-palette="papier"]{
+  --bg:#ECEAE4; --surface:#FAF9F6; --sunk:#E0DDD5; --ink:#1B1C1F; --muted:#62615C;
+  --line:#D0CDC4; --accent:#2340A0; --accent-ink:#FFFFFF; --keep:#2F7A45; --toss:#B83A26;
+  --shadow:0 8px 24px rgba(27,28,31,.12); --theme-color:#ECEAE4}
+@media (prefers-color-scheme: dark){:root[data-palette="papier"]:not([data-theme="light"]){
+  --bg:#141517; --surface:#1E1F22; --sunk:#292A2E; --ink:#ECEAE4; --muted:#A09E98;
+  --line:#36373B; --accent:#93A9F5; --accent-ink:#0E1A45; --keep:#64C487; --toss:#F08066;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#141517; color-scheme:dark}}
+:root[data-palette="papier"][data-theme="dark"]{
+  --bg:#141517; --surface:#1E1F22; --sunk:#292A2E; --ink:#ECEAE4; --muted:#A09E98;
+  --line:#36373B; --accent:#93A9F5; --accent-ink:#0E1A45; --keep:#64C487; --toss:#F08066;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#141517; color-scheme:dark}
+
+/* --- Sauge : vert de feuille, calme, pour lire longtemps --- */
+:root[data-palette="sauge"]{
+  --bg:#EBEFE8; --surface:#FFFFFF; --sunk:#DDE4D8; --ink:#18221A; --muted:#58665A;
+  --line:#C9D3C4; --accent:#3D6A3F; --accent-ink:#FFFFFF; --keep:#8A5A0F; --toss:#B8402C;
+  --shadow:0 10px 30px rgba(24,34,26,.13); --theme-color:#3D6A3F}
+@media (prefers-color-scheme: dark){:root[data-palette="sauge"]:not([data-theme="light"]){
+  --bg:#0F1510; --surface:#182019; --sunk:#222C23; --ink:#E7EEE6; --muted:#97A696;
+  --line:#2F3B30; --accent:#9DD195; --accent-ink:#11280F; --keep:#E8B65C; --toss:#F07A63;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#0F1510; color-scheme:dark}}
+:root[data-palette="sauge"][data-theme="dark"]{
+  --bg:#0F1510; --surface:#182019; --sunk:#222C23; --ink:#E7EEE6; --muted:#97A696;
+  --line:#2F3B30; --accent:#9DD195; --accent-ink:#11280F; --keep:#E8B65C; --toss:#F07A63;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --theme-color:#0F1510; color-scheme:dark}
+
+/* --- Braise : ambre chaud, pensé pour le soir --- */
+:root[data-palette="braise"]{
+  --bg:#F3EEE8; --surface:#FFFFFF; --sunk:#E9E0D5; --ink:#241A11; --muted:#6C5E50;
+  --line:#DACFC2; --accent:#9A4A08; --accent-ink:#FFFFFF; --keep:#2E7A4A; --toss:#B8322A;
+  --shadow:0 10px 30px rgba(36,26,17,.13); --theme-color:#9A4A08}
+@media (prefers-color-scheme: dark){:root[data-palette="braise"]:not([data-theme="light"]){
+  --bg:#121010; --surface:#1C1917; --sunk:#272320; --ink:#F3EDE6; --muted:#A99E92;
+  --line:#37312C; --accent:#F4A651; --accent-ink:#2B1503; --keep:#62C68A; --toss:#F27B6B;
+  --shadow:0 10px 30px rgba(0,0,0,.55); --theme-color:#121010; color-scheme:dark}}
+:root[data-palette="braise"][data-theme="dark"]{
+  --bg:#121010; --surface:#1C1917; --sunk:#272320; --ink:#F3EDE6; --muted:#A99E92;
+  --line:#37312C; --accent:#F4A651; --accent-ink:#2B1503; --keep:#62C68A; --toss:#F27B6B;
+  --shadow:0 10px 30px rgba(0,0,0,.55); --theme-color:#121010; color-scheme:dark}

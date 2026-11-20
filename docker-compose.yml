@@ -1,0 +1,16 @@
+services:
+  mora:
+    image: ghcr.io/bordecielnas-alt/mora:latest
+    container_name: mora
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+      # - MORA_REFRESH_HOURS=6
+      # - MORA_BATCH=12
+      # - MORA_CLAUDE_MODEL=sonnet

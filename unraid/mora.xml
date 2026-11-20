@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Mora</Name>
+  <Repository>ghcr.io/bordecielnas-alt/mora:latest</Repository>
+  <Registry>https://github.com/bordecielnas-alt/mora/pkgs/container/mora</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/bordecielnas-alt/mora/issues</Support>
+  <Project>https://github.com/bordecielnas-alt/mora</Project>
+  <Overview>Mora, ton feed perso curé par IA. L'IA cherche des articles, vidéos et podcasts selon tes thèmes ; tu gardes ou tu masques, et le feed apprend de tes choix. Connecte ton compte Claude (Pro ou Max) dans l'onglet Réglages de l'interface. Sans compte connecté, l'app tourne en mode démo. Mora n'a pas de mot de passe : ne l'expose pas sur Internet sans reverse proxy authentifié ou VPN.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/bordecielnas-alt/mora/main/unraid/mora.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/bordecielnas-alt/mora/main/public/icon-512.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Un abonnement Claude (Pro ou Max) pour les vraies recherches.</Requires>
+  <Config Name="Port de l'interface" Target="3000" Default="3000" Mode="tcp" Description="Port de l'interface web de Mora." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Données" Target="/data" Default="/mnt/user/appdata/mora" Mode="rw" Description="Tes thèmes, gardés, réglages (mora.json) et la connexion du compte Claude (dossier claude). À sauvegarder." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/mora</Config>
+  <Config Name="Fuseau horaire" Target="TZ" Default="Europe/Paris" Mode="" Description="Fuseau horaire du conteneur." Type="Variable" Display="always" Required="false" Mask="false">Europe/Paris</Config>
+  <Config Name="Recherche auto (heures)" Target="MORA_REFRESH_HOURS" Default="6" Mode="" Description="Une recherche est relancée au plus tard toutes les N heures." Type="Variable" Display="always" Required="false" Mask="false">6</Config>
+  <Config Name="Propositions par recherche" Target="MORA_BATCH" Default="12" Mode="" Description="Nombre de contenus demandés à chaque recherche. Moins = moins de quota consommé." Type="Variable" Display="always" Required="false" Mask="false">12</Config>
+  <Config Name="Réserve minimale" Target="MORA_MIN_PENDING" Default="8" Mode="" Description="Relance une recherche quand il reste moins de N contenus à voir." Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
+  <Config Name="Modèle Claude" Target="MORA_CLAUDE_MODEL" Default="" Mode="" Description="Optionnel : sonnet, opus… Vide = modèle par défaut de ton compte." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Moteur" Target="MORA_BACKEND" Default="auto" Mode="" Description="auto (défaut), claude-code, api ou demo." Type="Variable" Display="advanced" Required="false" Mask="false">auto</Config>
+  <Config Name="Clé API Anthropic" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optionnel, seulement avec le moteur api (facturation à l'usage). Laisse vide pour utiliser ton abonnement." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Utilisateur propriétaire des fichiers de /data (99 = nobody sur Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Groupe propriétaire des fichiers de /data (100 = users sur Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+</Container>

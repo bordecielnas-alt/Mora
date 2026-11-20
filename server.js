@@ -185,12 +185,9 @@ function maybeRefresh(reason, force = false) {
 
 // ---------- API ----------
 const pub = (i) => ({ ...i });
-// Nouveautés en haut : la recherche la plus récente d'abord (à la minute près), puis le score dans chaque recherche.
-const batchKey = (i) => i.batch || String(i.foundAt || "").slice(0, 16); // anciens contenus : regroupés à la minute
-const newestFirst = (a, b) => batchKey(b).localeCompare(batchKey(a)) || score(S(), b) - score(S(), a);
 function nextPage(n = PAGE, maxMin = 0) {
   const fits = (i) => !maxMin || (durationMin(i.duration) ?? Infinity) <= maxMin; // « J'ai X minutes »
-  const fresh = S().items.filter((i) => i.status === "new" && fits(i)).sort(newestFirst).slice(0, n);
+  const fresh = S().items.filter((i) => i.status === "new" && fits(i)).sort((a, b) => score(S(), b) - score(S(), a)).slice(0, n);
   const now = new Date().toISOString();
   fresh.forEach((i) => { i.status = "shown"; i.shownAt = now; });
   store.save();
@@ -200,8 +197,9 @@ function nextPage(n = PAGE, maxMin = 0) {
 function streamView() {
   const since = Date.now() - 3 * 86400e3;
   return S().items
-    .filter((i) => i.shownAt && Date.parse(i.shownAt) >= since && ["shown", "keep"].includes(i.status))
-    .sort(newestFirst);
+    // Déjà vu (resté à l'écran lors d'une visite précédente) : n'apparaît plus dans le fil.
+    .filter((i) => i.shownAt && !i.seenAt && Date.parse(i.shownAt) >= since && ["shown", "keep"].includes(i.status))
+    .sort((a, b) => a.shownAt.localeCompare(b.shownAt));
 }
 function status() {
   return {
@@ -213,6 +211,15 @@ function status() {
 const routes = [
   ["GET", /^\/api\/status$/, () => status()],
   ["GET", /^\/api\/stream$/, () => ({ items: streamView().map(pub), ...status() })],
+  // Le client signale les posts restés visibles à l'écran : ils ne reviendront plus dans le fil.
+  ["POST", /^\/api\/items\/seen$/, (m, body) => {
+    const ids = new Set(Array.isArray(body.ids) ? body.ids.slice(0, 200).map(String) : []);
+    const now = new Date().toISOString();
+    let n = 0;
+    for (const it of S().items) if (ids.has(it.id) && !it.seenAt) { it.seenAt = now; n++; }
+    if (n) store.save();
+    return { ok: true, marked: n };
+  }],
   ["POST", /^\/api\/stream\/next$/, (m, body) => ({ items: nextPage(PAGE, Number(body.maxMin) || 0).map(pub), ...status() })],
   ["POST", /^\/api\/refresh$/, () => { if (!aiReady()) throw httpErr(400, "Connecte d’abord ton compte Claude dans l’onglet Réglages."); refresh("bouton"); return status(); }],
 

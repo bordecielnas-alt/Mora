@@ -67,7 +67,7 @@ function postHTML(p) {
   const img = pic ? `<img src="${esc(pic)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('has-img');this.remove()">` : "";
   return `<article class="post" data-id="${p.id}">
     <div class="ph"><span class="avatar" style="background:${grad(p.source)}">${esc(initials(p.source))}</span>
-      <span class="who"><b>${esc(p.source)}</b><span>${p.status !== "quest" && isNew(p) ? '<span class="newdot">Nouveau</span> ' : ""}${TYPE_LABEL[p.type] || "Lien"} · ${ago(p.foundAt)}</span></span><span class="chip${p.theme === "Hors bulle" ? " out" : ""}">${esc(p.theme)}</span></div>
+      <span class="who"><b>${esc(p.source)}</b><span>${TYPE_LABEL[p.type] || "Lien"} · ${ago(p.foundAt)}</span></span><span class="chip${p.theme === "Hors bulle" ? " out" : ""}">${esc(p.theme)}</span></div>
     <div class="media${img ? " has-img" : ""}" style="background:${grad(p.theme)}" data-dbl="${p.id}" data-open="${esc(p.url)}"${v ? ` data-embed="${esc(v.embed)}"` : ""} title="Touche pour ouvrir, double-tape pour aimer">
       ${img}<span class="big">${ICON[p.type] || ICON.lien}</span>
       <span class="type">${ICON[p.type] || ICON.lien}${TYPE_LABEL[p.type] || "Lien"}</span>${p.duration ? `<span class="dur">${esc(p.duration)}</span>` : ""}
@@ -188,7 +188,7 @@ function renderStream() {
   state.stream = state.stream.filter((p) => (p.status !== "toss" || p.id === state.justTossed) && p.status !== "removed");
   const shown = state.stream.filter((p) => p.status === "toss" || fits(p));
   patchList($("#stream"), shown);
-  observeVideos();
+  observeVideos(); observeSeen();
   $("#timeFilter").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", Number(b.dataset.min) === state.maxMin));
   const s = state.status;
   const more = $("#more");
@@ -218,28 +218,36 @@ async function loadMore() {
   } catch (e) { toast(e.message); }
   finally { state.loading = false; checkSentinel(); }
 }
-// Nouveautés en haut : le fil est rangé par recherche, la plus récente d'abord (ordre du serveur gardé dans chaque recherche).
-const batchKey = (p) => p.batch || String(p.foundAt || "").slice(0, 16);
-function addToStream(items) {
-  const top = state.stream.length ? batchKey(state.stream[0]) : "";
-  state.stream.push(...items);
-  state.stream.sort((a, b) => batchKey(b).localeCompare(batchKey(a))); // tri stable
-  const fresh = top ? items.filter((p) => batchKey(p) > top).length : 0;
-  if (fresh && $("main").scrollTop > 200) showNewBar(fresh);
-}
-function showNewBar(n) {
-  const bar = $("#newbar");
-  bar.innerHTML = `<button type="button">↑ ${n} nouveauté${n > 1 ? "s" : ""}</button>`;
-  bar.hidden = false;
-  bar.querySelector("button").onclick = () => { $("main").scrollTo({ top: 0, behavior: "smooth" }); bar.hidden = true; };
-}
+function addToStream(items) { state.stream.push(...items); }
+
 // Après une recherche, on va chercher tout de suite la première page de nouveautés, même sans faire défiler.
 async function loadNewest() {
   if (state.loading) return;
   state.exhausted = false;
   await loadMore();
 }
-const isNew = (p) => state.stream.length && batchKey(p) === batchKey(state.stream[0]) && Date.now() - Date.parse(p.foundAt) < 12 * 3600e3;
+// « Déjà vu » : un post resté au moins 1,5 s à l'écran est signalé au serveur. Il reste affiché
+// pendant cette visite, mais ne reviendra plus dans le fil au prochain chargement.
+const seenSent = new Set(), seenQueue = new Set(), seenTimers = new Map();
+function flushSeen(beacon = false) {
+  if (!seenQueue.size) return;
+  const ids = [...seenQueue]; seenQueue.clear();
+  const body = JSON.stringify({ ids });
+  if (beacon && navigator.sendBeacon) navigator.sendBeacon("/api/items/seen", new Blob([body], { type: "application/json" }));
+  else api("/items/seen", { method: "POST", body: { ids } }).catch(() => ids.forEach((i) => seenQueue.add(i)));
+}
+const seenObs = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    const id = e.target.dataset.id; if (!id || seenSent.has(id)) continue;
+    if (e.isIntersecting && e.intersectionRatio >= 0.6) {
+      if (!seenTimers.has(id)) seenTimers.set(id, setTimeout(() => { seenTimers.delete(id); seenSent.add(id); seenQueue.add(id); }, 1500));
+    } else { clearTimeout(seenTimers.get(id)); seenTimers.delete(id); }
+  }
+}, { root: $("main"), threshold: [0, 0.6] }) : null;
+function observeSeen() { if (seenObs) $("#stream").querySelectorAll(".post[data-id]").forEach((el) => { if (!seenSent.has(el.dataset.id)) seenObs.observe(el); }); }
+setInterval(() => flushSeen(), 4000);
+addEventListener("pagehide", () => flushSeen(true));
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSeen(true); });
 
 // « J'ai X minutes » : ne montre que ce qui tient dans ce temps.
 function setMaxMin(v) {
@@ -331,7 +339,7 @@ function onPostsDbl(e) {
   if (p && !p.liked) setTimeout(() => like(p.id, true), 300);
 }
 for (const el of [$("#stream"), $("#questList")]) { el.addEventListener("click", onPostsClick); el.addEventListener("dblclick", onPostsDbl); }
-$("main").addEventListener("scroll", () => { checkSentinel(); if ($("main").scrollTop < 80) $("#newbar").hidden = true; }, { passive: true });
+$("main").addEventListener("scroll", checkSentinel, { passive: true });
 
 async function startRefresh() {
   try { state.status = await api("/refresh", { method: "POST" }); renderStream(); toast("Recherche lancée"); pollStatus(); }

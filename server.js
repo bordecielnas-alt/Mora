@@ -19,6 +19,8 @@ const { discover, checkPage, hasCredentials, MODEL, LANGS } = await import("./li
 const { demoItems, DEMO_THEMES } = await import("./lib/demo.js");
 const { discoverWithCli } = await import("./lib/discover-cli.js");
 const account = await import("./lib/account.js");
+const { als, current } = await import("./lib/context.js");
+const { Auth } = await import("./lib/auth.js");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -29,8 +31,6 @@ const LOW_WATER = Number(process.env.MORA_MIN_PENDING || 8);        // relance u
 const REFRESH_HOURS = Number(process.env.MORA_REFRESH_HOURS || 6);
 const BATCH = Number(process.env.MORA_BATCH || 12);
 
-const store = new Store(process.env.MORA_DATA_DIR || path.join(here, "data"));
-const S = () => store.state;
 // Moteur de recherche : abonnement Claude via Claude Code (par défaut), clé API, ou démo.
 const CLI_VERSION = account.claudeCliVersion();
 const BACKEND = (() => {
@@ -47,47 +47,87 @@ const aiReady = () => BACKEND === "api" || (BACKEND === "claude-code" && account
 const aiMode = () => BACKEND !== "demo";
 const BACKEND_LABEL = BACKEND === "claude-code" ? `Claude Code (abonnement)` : BACKEND === "api" ? `API (${MODEL})` : "démo";
 
-// Premier lancement : thèmes d'exemple, et contenus d'exemple en mode démo.
-if (!S().themes.length && !S().items.length) {
+// ---------- comptes ----------
+// Mode local (Mora écoute sur 127.0.0.1, ou MORA_AUTH=off) : un seul utilisateur, données dans le dossier de données.
+// Sinon : chaque compte a son dossier users/<id> (mora.json + sa connexion Claude dans claude/).
+const DATA_DIR = path.resolve(process.env.MORA_DATA_DIR || path.join(here, "data"));
+const userDir = (id) => path.join(DATA_DIR, "users", id);
+const auth = new Auth(DATA_DIR, process.env, HOST, adoptLegacyData);
+const contexts = new Map(); // id du compte -> contexte
+const U = () => current() || localCtx;
+const S = () => U().store.state;
+const tag = () => (U()?.label ? `[${U().label}] ` : "");
+const log = (...a) => console.log(tag() + a.join(" "));
+const logErr = (...a) => console.error(tag() + a.join(" "));
+function makeCtx(dir, claudeDir, label) {
+  const ctx = { dir, claudeDir, label, store: new Store(dir), refreshing: null, lastAttempt: 0, questing: null, translating: null, claude: {} };
+  als.run(ctx, firstRun);
+  return ctx;
+}
+const localCtx = auth.enabled ? null : makeCtx(DATA_DIR, null, null);
+function userCtx(user) {
+  let c = contexts.get(user.id);
+  if (!c) { c = makeCtx(userDir(user.id), path.join(userDir(user.id), "claude"), user.username); contexts.set(user.id, c); }
+  c.label = user.username;
+  return c;
+}
+const forEachUser = (fn) => { if (localCtx) als.run(localCtx, fn); else for (const u of auth.users) als.run(userCtx(u), fn); };
+
+// Le premier compte créé (administrateur) reprend les données d'avant les comptes (version 0.7 et avant).
+function adoptLegacyData(user) {
+  const dest = userDir(user.id);
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of ["mora.json", "tamis.json"]) {
+    const src = path.join(DATA_DIR, f);
+    if (fs.existsSync(src) && !fs.existsSync(path.join(dest, "mora.json"))) { fs.renameSync(src, path.join(dest, "mora.json")); console.log(`Données existantes confiées au compte « ${user.username} ».`); }
+  }
+  const oldClaude = process.env.CLAUDE_CONFIG_DIR && path.resolve(process.env.CLAUDE_CONFIG_DIR);
+  if (oldClaude && oldClaude.startsWith(DATA_DIR + path.sep) && fs.existsSync(oldClaude) && !fs.existsSync(path.join(dest, "claude"))) {
+    try { fs.renameSync(oldClaude, path.join(dest, "claude")); console.log(`Connexion Claude existante confiée au compte « ${user.username} ».`); } catch {}
+  }
+}
+
+// Premier lancement d'un compte : thèmes d'exemple, et contenus d'exemple en mode démo.
+function firstRun() {
+  if (S().themes.length || S().items.length) return;
   S().themes = [...DEMO_THEMES];
   for (const t of DEMO_THEMES) S().weights.theme[t] = 1;
-  if (!aiReady()) demoItems().forEach((i) => store.addItem(i));
-  store.flush();
+  if (!aiReady()) demoItems().forEach((i) => U().store.addItem(i));
+  U().store.flush();
 }
 
 // ---------- recherche de contenus ----------
-let refreshing = null;
-let lastAttempt = 0; // évite d'enchaîner les recherches automatiques (elles comptent dans ton quota)
+// u.lastAttempt évite d'enchaîner les recherches automatiques (elles comptent dans le quota du compte)
 async function refresh(reason = "manuel") {
-  if (refreshing) return refreshing;
+  const u = U();
+  if (u.refreshing) return u.refreshing;
   if (!aiReady()) return null;
-  lastAttempt = Date.now();
-  refreshing = (async () => {
-    console.log(`Recherche de nouveaux contenus (${reason})…`);
+  u.lastAttempt = Date.now();
+  return (u.refreshing = (async () => {
+    log(`Recherche de nouveaux contenus (${reason})…`);
     try {
       const { items: found, suggestions } = BACKEND === "claude-code" ? await discoverWithCli(S(), { count: BATCH }) : await discover(S(), { count: BATCH });
       const added = await addFound(found);
       addSuggestions(suggestions);
-      console.log(`${added} nouvelles propositions ajoutées.`);
+      log(`${added} nouvelles propositions ajoutées.`);
       S().lastRefresh = new Date().toISOString();
       S().lastError = null;
     } catch (e) {
       S().lastError = { at: new Date().toISOString(), message: String(e?.message || e) };
-      console.error("Échec de la recherche :", e?.message || e);
+      logErr("Échec de la recherche :", e?.message || e);
     } finally {
-      store.save();
-      refreshing = null;
+      u.store.save();
+      u.refreshing = null;
     }
-  })();
-  return refreshing;
+  })());
 }
 // Filtre (doublons, mots-clés et sources interdits), vérifie les liens, puis ajoute. Renvoie le nombre ajouté.
 async function addFound(found, extra = {}) {
   const P = S().prefs;
   const fresh = found.filter((raw) => {
-    if (store.hasUrl(raw.url)) return false;
-    if (hasBlockedWord(raw, P.blockedWords)) { console.log(`Écarté (mot-clé interdit) : ${raw.title}`); return false; }
-    if (P.blockedSources.some((b) => sourceMatch(raw, b))) { console.log(`Écarté (source bloquée) : ${raw.source}`); return false; }
+    if (U().store.hasUrl(raw.url)) return false;
+    if (hasBlockedWord(raw, P.blockedWords)) { log(`Écarté (mot-clé interdit) : ${raw.title}`); return false; }
+    if (P.blockedSources.some((b) => sourceMatch(raw, b))) { log(`Écarté (source bloquée) : ${raw.source}`); return false; }
     return true;
   });
   // Vérification des liens, 6 à la fois.
@@ -100,8 +140,8 @@ async function addFound(found, extra = {}) {
   const batchAt = new Date().toISOString(); // même date pour toute la recherche : le fil les range ensemble
   fresh.forEach((raw, k) => {
     const c = checks[k];
-    if (trust && !c.ok) { console.log(`Lien écarté (${c.reason}) : ${raw.url}`); return; }
-    Object.assign(store.addItem({ ...raw, ...extra, image: c.image || null }), { foundAt: batchAt, batch: batchAt });
+    if (trust && !c.ok) { log(`Lien écarté (${c.reason}) : ${raw.url}`); return; }
+    Object.assign(U().store.addItem({ ...raw, ...extra, image: c.image || null }), { foundAt: batchAt, batch: batchAt });
     added++;
   });
   return added;
@@ -117,10 +157,10 @@ function addSuggestions(list = []) {
 }
 
 // ---------- recherches ponctuelles ----------
-let questing = null;
 async function runQuest(quest) {
-  questing = quest.id;
-  console.log(`Recherche ponctuelle : ${quest.q}`);
+  const u = U();
+  u.questing = quest.id;
+  log(`Recherche ponctuelle : ${quest.q}`);
   try {
     const opts = { count: 6, quest: { q: quest.q, label: quest.label } };
     const { items } = BACKEND === "claude-code" ? await discoverWithCli(S(), opts) : await discover(S(), opts);
@@ -128,10 +168,10 @@ async function runQuest(quest) {
     quest.status = "done";
   } catch (e) {
     quest.status = "error"; quest.error = String(e?.message || e);
-    console.error("Échec de la recherche ponctuelle :", quest.error);
+    logErr("Échec de la recherche ponctuelle :", quest.error);
   } finally {
-    questing = null;
-    store.save();
+    u.questing = null;
+    u.store.save();
   }
 }
 const questView = (q) => ({ ...q, items: S().items.filter((i) => i.quest === q.id && ["quest", "keep", "shown"].includes(i.status)).map(pub) });
@@ -157,28 +197,28 @@ function keptMarkdown() {
 }
 
 // ---------- traduction des anciens titres ----------
-let translating = null;
 function translateOld() {
-  if (translating || !aiReady()) return;
+  const u = U();
+  if (u.translating || !aiReady()) return;
   if (!S().items.some((i) => !i.titleFr && !i.demo && i.status !== "removed")) return;
-  translating = (async () => {
-    console.log("Traduction en français des titres déjà enregistrés…");
+  u.translating = (async () => {
+    log("Traduction en français des titres déjà enregistrés…");
     try {
       const n = await translateTitles(S().items, BACKEND);
-      console.log(`${n} titres traduits.`);
+      log(`${n} titres traduits.`);
     } catch (e) {
-      console.error("Échec de la traduction des titres :", e?.message || e);
+      logErr("Échec de la traduction des titres :", e?.message || e);
     } finally {
-      store.save();
-      translating = null;
+      u.store.save();
+      u.translating = null;
     }
   })();
 }
 
 const pending = () => S().items.filter((i) => i.status === "new").length;
 function maybeRefresh(reason, force = false) {
-  if (!aiReady() || refreshing) return;
-  if (!force && Date.now() - lastAttempt < 30 * 60e3) return;
+  if (!aiReady() || U().refreshing) return;
+  if (!force && Date.now() - U().lastAttempt < 30 * 60e3) return;
   const stale = !S().lastRefresh || Date.now() - Date.parse(S().lastRefresh) > REFRESH_HOURS * 3600e3;
   if (pending() < LOW_WATER || stale) refresh(reason);
 }
@@ -190,7 +230,7 @@ function nextPage(n = PAGE, maxMin = 0) {
   const fresh = S().items.filter((i) => i.status === "new" && fits(i)).sort((a, b) => score(S(), b) - score(S(), a)).slice(0, n);
   const now = new Date().toISOString();
   fresh.forEach((i) => { i.status = "shown"; i.shownAt = now; });
-  store.save();
+  U().store.save();
   maybeRefresh("réserve basse");
   return fresh;
 }
@@ -203,7 +243,7 @@ function streamView() {
 }
 function status() {
   return {
-    mode: aiReady() ? "ia" : "demo", backend: BACKEND, needsLogin: BACKEND === "claude-code" && !account.accountStatus().loggedIn, model: BACKEND_LABEL, refreshing: !!refreshing, translating: !!translating, questing: !!questing, pending: pending(),
+    mode: aiReady() ? "ia" : "demo", backend: BACKEND, needsLogin: BACKEND === "claude-code" && !account.accountStatus().loggedIn, model: BACKEND_LABEL, refreshing: !!U().refreshing, translating: !!U().translating, questing: !!U().questing, pending: pending(),
     lastRefresh: S().lastRefresh, lastError: S().lastError, decisions: S().decisions,
   };
 }
@@ -217,7 +257,7 @@ const routes = [
     const now = new Date().toISOString();
     let n = 0;
     for (const it of S().items) if (ids.has(it.id) && !it.seenAt) { it.seenAt = now; n++; }
-    if (n) store.save();
+    if (n) U().store.save();
     return { ok: true, marked: n };
   }],
   ["POST", /^\/api\/stream\/next$/, (m, body) => ({ items: nextPage(PAGE, Number(body.maxMin) || 0).map(pub), ...status() })],
@@ -235,7 +275,7 @@ const routes = [
     if (it.status !== "toss") return pub(it);
     decide(it, "none");
     it.shownAt = new Date().toISOString();
-    store.save();
+    U().store.save();
     return pub(it);
   }],
   ["GET", /^\/api\/hidden$/, () => {
@@ -253,7 +293,7 @@ const routes = [
     tossEffect(S(), it, +1);  // annule l'effet actuel…
     it.reason = r;
     tossEffect(S(), it, -1);  // …et applique celui de la raison
-    store.save();
+    U().store.save();
     return pub(it);
   }],
   ["GET", /^\/api\/quests$/, () => S().quests.slice(-8).reverse().map(questView)],
@@ -261,19 +301,19 @@ const routes = [
     const q = String(body.q || "").trim().slice(0, 200);
     if (!q) throw httpErr(400, "Écris ce que tu cherches.");
     if (!aiReady()) throw httpErr(400, "Connecte d’abord ton compte Claude dans l’onglet Réglages.");
-    if (questing) throw httpErr(409, "Une recherche ponctuelle est déjà en cours.");
+    if (U().questing) throw httpErr(409, "Une recherche ponctuelle est déjà en cours.");
     const label = q.replace(/^(trouve[- ]moi|cherche|des contenus sur|du contenu sur)\s+/i, "").replace(/\s+(cette semaine|ce mois-ci|aujourd’hui|aujourd'hui)$/i, "").slice(0, 40) || q.slice(0, 40);
     const quest = { id: crypto.randomUUID(), q, label: label[0].toUpperCase() + label.slice(1), at: new Date().toISOString(), status: "running", found: 0 };
     S().quests.push(quest);
     S().quests = S().quests.slice(-20);
-    store.save();
+    U().store.save();
     runQuest(quest);
     return questView(quest);
   }],
   ["DELETE", /^\/api\/quests\/([\w-]+)$/, (m) => {
     S().quests = S().quests.filter((q) => q.id !== m[1] || q.status === "running");
     S().items = S().items.filter((i) => !(i.quest === m[1] && i.status === "quest"));
-    store.save();
+    U().store.save();
     return { ok: true };
   }],
 
@@ -285,7 +325,7 @@ const routes = [
       S().themes.push(name); S().weights.theme[name] = 1;
       if (aiReady()) refresh("thème suggéré");
     }
-    store.save();
+    U().store.save();
     return { themes: S().themes, weights: S().weights, suggestions: S().suggestions };
   }],
 
@@ -308,7 +348,7 @@ const routes = [
     if (typeof body.autoplay === "boolean") p.autoplay = body.autoplay;
     if (["auto", "light", "dark"].includes(body.mode)) p.mode = body.mode;
     if (typeof body.palette === "string" && /^[a-z-]{1,20}$/.test(body.palette)) p.palette = body.palette;
-    store.save();
+    U().store.save();
     return { prefs: p };
   }],
 
@@ -322,7 +362,7 @@ const routes = [
     it.likedAt = want ? new Date().toISOString() : null;
     learn(S(), it, want ? +1 : -1, LIKE_FACTOR);
     if (want && it.status === "toss") { it.status = "shown"; tossEffect(S(), it, +1); it.reason = null; S().decisions = Math.max(0, S().decisions - 1); it.decidedAt = null; }
-    store.save();
+    U().store.save();
     return pub(it);
   }],
 
@@ -339,12 +379,12 @@ const routes = [
     if (typeof body.note === "string") it.note = body.note.slice(0, 2000);
     if (typeof body.star === "boolean") it.star = body.star;
     if (typeof body.theme === "string" && S().themes.includes(body.theme)) it.theme = body.theme;
-    store.save();
+    U().store.save();
     return pub(it);
   }],
   ["DELETE", /^\/api\/kept\/([\w-]+)$/, (m) => {
     const it = mustGet(m[1]);
-    if (it.status === "keep") { it.status = "removed"; learn(S(), it, -1, 0.5); store.save(); }
+    if (it.status === "keep") { it.status = "removed"; learn(S(), it, -1, 0.5); U().store.save(); }
     return { ok: true };
   }],
 
@@ -353,7 +393,7 @@ const routes = [
     const name = String(body.name || "").trim().slice(0, 40);
     if (!name) throw httpErr(400, "Nom de thème vide.");
     if (!S().themes.some((t) => t.toLowerCase() === name.toLowerCase())) { S().themes.push(name); S().weights.theme[name] = 1; }
-    store.save();
+    U().store.save();
     if (aiReady()) refresh("nouveau thème");
     return { themes: S().themes, weights: S().weights };
   }],
@@ -362,7 +402,7 @@ const routes = [
     S().themes = S().themes.filter((t) => t !== name);
     delete S().weights.theme[name];
     S().items = S().items.filter((i) => !(i.theme === name && i.status === "new"));
-    store.save();
+    U().store.save();
     return { themes: S().themes, weights: S().weights };
   }],
 ];
@@ -380,7 +420,7 @@ function decide(it, want) {
   if (want === "none") S().decisions = Math.max(0, S().decisions - 1);
   it.status = want === "none" ? (it.quest && !it.shownAt ? "quest" : "shown") : want;
   it.decidedAt = want === "none" ? null : new Date().toISOString();
-  store.save();
+  U().store.save();
 }
 
 // Onglet Stats : centres d'intérêt, croisement thème × format, activité des 12 dernières semaines.
@@ -418,19 +458,20 @@ function stats() {
 function removeUnseenDemo() {
   const before = S().items.length;
   S().items = S().items.filter((i) => !(i.demo && (i.status === "new" || i.status === "shown")));
-  if (S().items.length !== before) store.save();
+  if (S().items.length !== before) U().store.save();
 }
 
 function httpErr(code, message) { const e = new Error(message); e.code = code; return e; }
-function mustGet(id) { const it = store.get(id); if (!it) throw httpErr(404, "Contenu introuvable."); return it; }
+function mustGet(id) { const it = U().store.get(id); if (!it) throw httpErr(404, "Contenu introuvable."); return it; }
 
 // ---------- fichiers statiques ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };
 const PUBLIC = path.join(here, "public");
-function serveStatic(req, res) {
-  let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+function serveStatic(req, res, pathname) {
+  let p; try { p = decodeURIComponent(pathname); } catch { return send(res, 400, { error: "Adresse invalide" }); }
   if (p === "/") p = "/index.html";
+  if (p === "/login") p = "/login.html";
   const file = path.normalize(path.join(PUBLIC, p));
   if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, { error: "Interdit" });
   fs.readFile(file, (err, buf) => {
@@ -439,48 +480,104 @@ function serveStatic(req, res) {
     res.end(buf);
   });
 }
-
 function send(res, code, data) {
   res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(JSON.stringify(data));
 }
+const redirect = (res, to) => { res.writeHead(302, { location: to, "cache-control": "no-store" }); res.end(); };
+async function readBody(req) {
+  if (!["POST", "PATCH", "DELETE"].includes(req.method)) return {};
+  let raw = "";
+  for await (const chunk of req) { raw += chunk; if (raw.length > 1e5) throw httpErr(413, "Requête trop grosse."); }
+  try { return raw ? JSON.parse(raw) : {}; } catch { throw httpErr(400, "Requête illisible."); }
+}
+const reply = (res, out) => (out?.error ? send(res, out.code || 400, { error: out.error }) : send(res, 200, out));
+
+// ---------- connexion et comptes ----------
+async function authApi(req, res, pathname, body) {
+  const s = auth.enabled ? auth.session(req) : null;
+  const R = (method, re) => req.method === method && re.test(pathname);
+  if (R("GET", /^\/api\/auth\/me$/)) return send(res, 200, auth.info(req));
+  if (!auth.enabled) return send(res, 400, { error: "Les comptes sont désactivés (mode local)." });
+  if (R("POST", /^\/api\/auth\/login$/)) return reply(res, auth.login(req, res, body));
+  if (R("POST", /^\/api\/auth\/setup$/)) return reply(res, auth.setup(req, res, body));
+  if (R("POST", /^\/api\/auth\/logout$/)) return reply(res, auth.logout(req, res, { everywhere: !!body.everywhere }));
+  if (!s) return send(res, 401, { error: "Connecte-toi.", auth: true });
+  if (R("POST", /^\/api\/auth\/password$/)) return reply(res, auth.changePassword(req, res, s, body));
+  // Gestion des comptes : administrateurs seulement.
+  if (!s.user.admin) return send(res, 403, { error: "Réservé aux administrateurs." });
+  if (R("GET", /^\/api\/users$/)) return send(res, 200, auth.list());
+  if (R("POST", /^\/api\/users$/)) return reply(res, auth.create(body));
+  let m;
+  if (req.method === "PATCH" && (m = pathname.match(/^\/api\/users\/([\w-]+)$/))) return reply(res, auth.update(s, m[1], body));
+  if (req.method === "DELETE" && (m = pathname.match(/^\/api\/users\/([\w-]+)$/))) {
+    const out = auth.remove(s, m[1]);
+    if (out.error) return reply(res, out);
+    // Supprime ses données (fil, gardés, connexion Claude) : un compte supprimé ne laisse rien.
+    const c = contexts.get(m[1]);
+    if (c) { c.claude.child?.kill(); clearTimeout(c.store.timer); contexts.delete(m[1]); }
+    try { fs.rmSync(userDir(m[1]), { recursive: true, force: true }); } catch (e) { console.error("Suppression des données impossible :", e.message); }
+    return send(res, 200, { ok: true });
+  }
+  return send(res, 404, { error: "Route inconnue" });
+}
+
+const SECURITY_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "cross-origin-opener-policy": "same-origin",
+};
 
 const server = http.createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, "http://x");
-  if (!pathname.startsWith("/api/")) return serveStatic(req, res);
-  const route = routes.find(([method, re]) => method === req.method && re.test(pathname));
-  if (!route) return send(res, 404, { error: "Route inconnue" });
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   try {
-    let body = {};
-    if (["POST", "PATCH"].includes(req.method)) {
-      let raw = "";
-      for await (const chunk of req) { raw += chunk; if (raw.length > 1e5) throw httpErr(413, "Requête trop grosse."); }
-      body = raw ? JSON.parse(raw) : {};
+    const { pathname } = new URL(req.url, "http://x");
+    if (pathname === "/api/health") return send(res, 200, { ok: true });
+    const s = auth.enabled ? auth.session(req) : null;
+
+    if (!pathname.startsWith("/api/")) {
+      // Pages : sans session, on montre l'écran de connexion.
+      const page = pathname === "/" || pathname === "/index.html";
+      if (auth.enabled && !s && page) return redirect(res, "/login");
+      if (pathname === "/login" || pathname === "/login.html") { if (!auth.enabled || s) return redirect(res, "/"); }
+      return serveStatic(req, res, pathname);
     }
-    const out = await route[2](pathname.match(route[1]), body);
+    // Rien ne se modifie depuis un autre site (protection CSRF), y compris en mode local.
+    if (!auth.sameOrigin(req)) return send(res, 403, { error: "Requête refusée (origine inconnue)." });
+    const body = await readBody(req);
+    if (pathname.startsWith("/api/auth/") || pathname === "/api/users" || pathname.startsWith("/api/users/")) return await authApi(req, res, pathname, body);
+    if (auth.enabled && !s) return send(res, 401, { error: "Connecte-toi.", auth: true });
+
+    const route = routes.find(([method, re]) => method === req.method && re.test(pathname));
+    if (!route) return send(res, 404, { error: "Route inconnue" });
+    // Chaque requête tourne dans le contexte de son compte (ses données, sa connexion Claude).
+    const out = await als.run(s ? userCtx(s.user) : localCtx, () => route[2](pathname.match(route[1]), body));
     if (out?.[RAW]) {
       res.writeHead(200, { "content-type": out.type, "cache-control": "no-store", "content-disposition": `attachment; filename="${out.filename}"` });
       return res.end(out.body);
     }
     send(res, 200, out);
   } catch (e) {
-    send(res, typeof e.code === "number" ? e.code : 500, { error: e.message || "Erreur" });
+    if (!res.headersSent) send(res, typeof e.code === "number" ? e.code : 500, { error: e.message || "Erreur" });
   }
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`\nMora tourne sur http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
-  if (BACKEND === "claude-code" && !account.accountStatus().loggedIn)
-    console.log(`Claude Code ${CLI_VERSION} trouvé, compte pas encore connecté : ouvre l'app, onglet Réglages, « Connecter mon compte Claude ».`);
-  else console.log(aiMode()
-    ? `Recherche via ${BACKEND_LABEL}${CLI_VERSION && BACKEND === "claude-code" ? ` ${CLI_VERSION}` : ""} : recherche de contenus toutes les ${REFRESH_HOURS} h, ou quand il en reste moins de ${LOW_WATER}.`
-    : "Mode démo : contenus d'exemple. Installe Claude Code (commande `claude`) et connecte-le à ton abonnement pour de vraies propositions.");
-  maybeRefresh("démarrage");
-  translateOld();
-  setInterval(() => maybeRefresh("planifié"), 15 * 60e3).unref();
+  if (auth.enabled) {
+    console.log(`Comptes activés : ${auth.users.length} compte${auth.users.length > 1 ? "s" : ""}.`);
+    if (auth.needsSetup) console.log(`\n  Premier lancement : ouvre Mora et crée le compte administrateur.\n  Code d’installation : ${auth.setupCode}\n`);
+  } else console.log("Mode local : un seul utilisateur, sans mot de passe (Mora n’écoute que sur cet ordinateur).");
+  if (BACKEND === "claude-code") console.log(`Claude Code ${CLI_VERSION} trouvé. Chaque compte connecte son abonnement Claude dans Réglages.`);
+  else console.log(aiMode() ? `Recherche via ${BACKEND_LABEL}.` : "Mode démo : contenus d'exemple. Installe Claude Code (commande `claude`) et connecte-le à ton abonnement pour de vraies propositions.");
+  console.log(`Recherche de contenus toutes les ${REFRESH_HOURS} h, ou quand il en reste moins de ${LOW_WATER}.`);
+  forEachUser(() => { maybeRefresh("démarrage"); translateOld(); });
+  setInterval(() => forEachUser(() => maybeRefresh("planifié")), 15 * 60e3).unref();
 });
 
-for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { store.flush(); process.exit(0); });
+const flushAll = () => { localCtx?.store.flush(); for (const c of contexts.values()) c.store.flush(); };
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { flushAll(); process.exit(0); });
 
 function loadDotEnv(file) {
   try {

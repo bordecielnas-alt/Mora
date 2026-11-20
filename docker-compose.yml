@@ -11,6 +11,10 @@ services:
       - TZ=Europe/Paris
       - PUID=1000
       - PGID=1000
+      # Premier compte administrateur (sinon : code d'installation affiché dans les logs)
+      # - MORA_ADMIN_USER=admin
+      # - MORA_ADMIN_PASSWORD=change-moi-tout-de-suite
+      # - MORA_SESSION_DAYS=30
       # - MORA_REFRESH_HOURS=6
       # - MORA_BATCH=12
       # - MORA_CLAUDE_MODEL=sonnet

@@ -1,6 +1,6 @@
 {
   "name": "mora",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Feed perso curé par IA : l'IA propose, tu gardes ou masques, le feed apprend.",
   "type": "module",

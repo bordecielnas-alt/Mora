@@ -29,6 +29,7 @@ async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && data.auth) { location.replace("/login"); throw new Error("Connecte-toi."); } // session expirée
   if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
   return data;
 }
@@ -692,7 +693,7 @@ function showTab(v) {
   pickVideo();
   $("main").scrollTop = 0;
   if (v === "tri") checkSentinel();
-  if (v === "themes") { loadAccount(); loadHidden(); }
+  if (v === "themes") { loadAccount(); loadHidden(); loadMe(); }
   if (v === "stats") loadStats();
   if (v === "quest") { loadQuests(); setTimeout(() => $("#questIn").focus(), 50); }
 }
@@ -759,13 +760,91 @@ function renderAccount() {
   });
 }
 
+/* ---------------- Compte Mora (connexion, mot de passe, comptes) ---------------- */
+let me = null;
+async function loadMe() {
+  try { me = await api("/auth/me"); } catch { me = null; }
+  renderMe();
+  if (me?.user?.admin) loadUsers(); else $("#usersSection").hidden = true;
+}
+function renderMe() {
+  const box = $("#meBlock");
+  if (!me?.enabled || !me.user) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="state"><span class="dot ok"></span>Connecté·e en tant que <b>${esc(me.user.username)}</b>${me.user.admin ? ` <span class="tag">admin</span>` : ""}</div>
+    <div class="row2"><button class="btn ghost" id="meLogout" type="button">Se déconnecter</button><button class="btn ghost" id="mePwBtn" type="button">Changer le mot de passe</button></div>
+    <form class="pwform" id="mePw" hidden>
+      <input name="current" type="password" autocomplete="current-password" placeholder="Mot de passe actuel" required>
+      <input name="password" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (10 caractères min.)" required minlength="10">
+      <input name="password2" type="password" autocomplete="new-password" placeholder="Confirme le nouveau mot de passe" required minlength="10">
+      <div class="row2"><button class="btn" type="submit">Enregistrer</button></div>
+      <p class="small">Tes autres appareils seront déconnectés.</p>
+    </form>
+    ${me.sessions > 1 ? `<p class="small">Connecté·e sur ${me.sessions} appareils. <button class="linkbtn" id="meLogoutAll" type="button">Déconnecter partout</button></p>` : ""}`;
+  const logout = async (everywhere) => { try { await api("/auth/logout", { method: "POST", body: { everywhere } }); } catch {} location.replace("/login"); };
+  box.querySelector("#meLogout").onclick = () => logout(false);
+  const all = box.querySelector("#meLogoutAll"); if (all) all.onclick = () => logout(true);
+  box.querySelector("#mePwBtn").onclick = () => { const f = box.querySelector("#mePw"); f.hidden = !f.hidden; if (!f.hidden) f.current.focus(); };
+  box.querySelector("#mePw").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.password.value !== f.password2.value) return toast("Les deux mots de passe ne sont pas identiques.");
+    try { await api("/auth/password", { method: "POST", body: { current: f.current.value, password: f.password.value } }); toast("Mot de passe changé"); loadMe(); }
+    catch (err) { toast(err.message); }
+  };
+}
+
+let users = [];
+async function loadUsers() {
+  try { users = await api("/users"); } catch { return; }
+  $("#usersSection").hidden = false;
+  renderUsers();
+}
+function renderUsers() {
+  const box = $("#usersBlock");
+  box.innerHTML = `<div class="users">${users.map((u) => `<div class="user">
+      <span class="who"><b>${esc(u.username)}</b><span class="small">${u.admin ? "administrateur · " : ""}créé le ${new Date(u.createdAt).toLocaleDateString("fr-FR")}</span></span>
+      <span class="uacts"><button class="btn ghost" data-pw="${esc(u.id)}" type="button">Mot de passe</button>${u.id === me.user.id ? "" : `<button class="btn ghost" data-adm="${esc(u.id)}" type="button">${u.admin ? "Retirer admin" : "Admin"}</button><button class="btn danger" data-del="${esc(u.id)}" type="button">Supprimer</button>`}</span>
+    </div>`).join("")}</div>
+    <form class="userform" id="userAdd">
+      <b>Ajouter un compte</b>
+      <input name="username" placeholder="Identifiant" autocomplete="off" autocapitalize="none" spellcheck="false" required minlength="2" maxlength="32">
+      <input name="password" type="password" placeholder="Mot de passe provisoire (10 caractères min.)" autocomplete="new-password" required minlength="10">
+      <label class="chk"><input type="checkbox" name="admin"> Administrateur (peut gérer les comptes)</label>
+      <div class="row2"><button class="btn" type="submit">Créer le compte</button></div>
+      <p class="small">Donne l’identifiant et le mot de passe à la personne : elle pourra le changer dans ses Réglages, puis connecter son propre compte Claude.</p>
+    </form>`;
+  const byId = (id) => users.find((u) => u.id === id);
+  box.querySelectorAll("[data-pw]").forEach((b) => (b.onclick = async () => {
+    const u = byId(b.dataset.pw);
+    const pw = prompt(`Nouveau mot de passe pour ${u.username} (10 caractères minimum) :`);
+    if (!pw) return;
+    try { await api(`/users/${u.id}`, { method: "PATCH", body: { password: pw } }); toast("Mot de passe changé"); } catch (e) { toast(e.message); }
+  }));
+  box.querySelectorAll("[data-adm]").forEach((b) => (b.onclick = async () => {
+    const u = byId(b.dataset.adm);
+    try { await api(`/users/${u.id}`, { method: "PATCH", body: { admin: !u.admin } }); loadUsers(); } catch (e) { toast(e.message); }
+  }));
+  box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const u = byId(b.dataset.del);
+    if (!confirm(`Supprimer le compte « ${u.username} » ? Son fil, ses gardés et sa connexion Claude seront effacés.`)) return;
+    try { await api(`/users/${u.id}`, { method: "DELETE" }); toast("Compte supprimé"); loadUsers(); } catch (e) { toast(e.message); }
+  }));
+  box.querySelector("#userAdd").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await api("/users", { method: "POST", body: { username: f.username.value, password: f.password.value, admin: f.admin.checked } }); toast("Compte créé"); loadUsers(); }
+    catch (err) { toast(err.message); }
+  };
+}
+
 /* ---------------- Démarrage ---------------- */
 (async () => {
   try {
     const r = await api("/stream");
     state.stream = r.items; state.status = r;
     renderStream();
-    await Promise.all([loadKept(), loadThemes(), loadAccount(), loadPrefs(), loadHidden(), loadQuests()]);
+    await Promise.all([loadKept(), loadThemes(), loadAccount(), loadPrefs(), loadHidden(), loadQuests(), loadMe()]);
     checkSentinel();
     if (r.refreshing || r.translating || r.questing) { wasQuesting = !!r.questing; pollStatus(); }
   } catch (e) {

@@ -14,14 +14,31 @@ docker run -d --name mora -p 3000:3000 -v /chemin/vers/mora-data:/data ghcr.io/b
 Ou avec `docker compose up -d` (fichier `docker-compose.yml` à la racine). Ouvre ensuite `http://<IP-du-serveur>:3000`
 et connecte ton compte Claude dans **Réglages** (voir plus bas).
 
-- **Données** : tout ce qui doit survivre à une mise à jour est dans le volume `/data` (`mora.json` et la connexion
-  du compte Claude dans `/data/claude`). Sauvegarde ce dossier.
+- **Données** : tout ce qui doit survivre à une mise à jour est dans le volume `/data` : `users.json` (les comptes,
+  mots de passe hachés) et un dossier par compte dans `users/` (son fil, ses gardés, sa connexion Claude). Sauvegarde ce dossier.
 - **Utilisateur** : le conteneur écrit dans `/data` avec `PUID`/`PGID` (99/100 par défaut, comme Unraid).
 - **Réglages** : les mêmes variables que dans `.env.example`, passées en variables d'environnement (`MORA_REFRESH_HOURS`, `MORA_BATCH`, `MORA_CLAUDE_MODEL`…).
 - **Unraid** : un modèle prêt est dans [`unraid/mora.xml`](unraid/mora.xml).
-- **Sécurité** : Mora n'a pas de mot de passe. Ne l'expose pas directement sur Internet ; pour y accéder de l'extérieur
-  ou l'installer comme une app sur ton téléphone (HTTPS requis), passe par un reverse proxy (Nginx Proxy Manager, SWAG,
-  Caddy…) avec authentification, ou par un VPN (Tailscale, WireGuard).
+- **Accès extérieur** : place Mora derrière ton reverse proxy en HTTPS (Nginx Proxy Manager, SWAG, Caddy…), un simple
+  proxy HTTP vers le port 3000 suffit. Le HTTPS permet aussi d'installer Mora comme une app sur le téléphone.
+
+## Comptes
+
+Avec Docker (ou dès que Mora n'écoute plus seulement sur `127.0.0.1`), il faut se connecter. Chaque compte a **son propre
+fil, ses gardés, ses réglages et connecte son propre compte Claude** : les recherches de chacun comptent dans son abonnement.
+
+1. **Premier lancement** : ouvre Mora et crée le compte administrateur avec le **code d'installation** affiché dans les logs
+   (sur Unraid : icône du conteneur › Logs). Ou bien renseigne `MORA_ADMIN_USER` et `MORA_ADMIN_PASSWORD` avant le premier
+   lancement : le compte est alors créé tout seul (ces variables ne servent plus ensuite).
+2. **Ajouter quelqu'un** : Réglages › Comptes › Ajouter un compte, avec un mot de passe provisoire. La personne se connecte,
+   change son mot de passe dans Réglages et connecte son compte Claude.
+3. **Mot de passe oublié** : un administrateur lui en donne un nouveau (Réglages › Comptes › Mot de passe).
+
+Si tu utilisais déjà Mora avant les comptes, tes données et ta connexion Claude passent au compte administrateur.
+
+Sécurité : mots de passe hachés (scrypt), sessions par cookie `HttpOnly` (et `Secure` derrière un proxy HTTPS),
+déconnexion de tous les appareils au changement de mot de passe, blocage progressif après 5 essais ratés,
+requêtes venant d'autres sites refusées. Il n'y a pas d'inscription libre : seul un administrateur crée des comptes.
 
 ## Lancer l'app sans Docker
 
@@ -51,7 +68,7 @@ Pas de clé API, pas de facturation à l'usage : les recherches comptent dans le
 Les recherches automatiques sont espacées d'au moins 30 minutes. Pour économiser ton quota :
 `MORA_REFRESH_HOURS=12`, `MORA_BATCH=8` ou `MORA_CLAUDE_MODEL=sonnet` dans un fichier `.env` (modèle dans `.env.example`).
 
-La connexion est celle de Claude Code : si tu utilises déjà Claude Code sur cet ordinateur, Mora partage la même connexion.
+En mode local, la connexion est celle de Claude Code : si tu utilises déjà Claude Code sur cet ordinateur, Mora partage la même connexion. Avec les comptes, chaque compte a sa propre connexion Claude.
 
 ## Comment ça marche
 
@@ -84,12 +101,12 @@ pour orienter la recherche suivante.
 ## Sur ton téléphone
 
 Mets `HOST=0.0.0.0` dans `.env`, relance, puis ouvre `http://<IP-de-ton-ordinateur>:3000` sur le téléphone (même Wi-Fi).
-Ça marche comme un site. Attention : n'importe qui sur ce Wi-Fi peut alors ouvrir Mora (et déconnecter ton compte) ; ne le fais que sur ton réseau à toi. L'installation comme une vraie app sur le téléphone demande du HTTPS : voir la partie Docker (reverse proxy).
+Ça marche comme un site. Les comptes s'activent alors : un code d'installation s'affiche dans la console pour créer ton compte (voir « Comptes »). L'installation comme une vraie app sur le téléphone demande du HTTPS : voir la partie Docker (reverse proxy).
 Sur l'ordinateur, Chrome ou Edge proposent déjà « Installer Mora » dans la barre d'adresse.
 
 ## Tes données
 
-Tout est dans `data/mora.json` sur ta machine (ou dans le volume `/data` avec Docker). Pour repartir de zéro, arrête l'app et supprime ce fichier.
+En mode local, tout est dans `data/mora.json` sur ta machine. Avec les comptes, chaque compte a son dossier `data/users/<id>/` (ou `/data/users/` avec Docker). Pour repartir de zéro, arrête l’app et supprime ce fichier (ou ce dossier).
 
 ## Organisation du code
 
@@ -97,12 +114,14 @@ Tout est dans `data/mora.json` sur ta machine (ou dans le volume `/data` avec Do
 server.js          serveur HTTP + API (aucune dépendance hors SDK Claude)
 lib/store.js       stockage JSON
 lib/learn.js       poids appris et score de classement
-lib/account.js     connexion du compte Claude (pilote `claude auth login`)
+lib/auth.js        comptes Mora : mots de passe, sessions, administration
+lib/context.js     compte en cours pour chaque requête (multi-comptes)
+lib/account.js     connexion du compte Claude de chaque compte (pilote `claude auth login`)
 lib/discover-cli.js recherche via Claude Code (abonnement)
 lib/discover.js    recherche via clé API (option) + image d'aperçu des pages
 lib/demo.js        contenus d'exemple du mode démo
 lib/translate.js   traduction en français des anciens titres
-public/            interface (PWA : manifest + service worker)
+public/            interface (PWA : manifest + service worker, login.html)
 Dockerfile         image Docker (+ docker/entrypoint.sh)
 unraid/mora.xml    modèle de conteneur Unraid
 ```

@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/bordecielnas-alt/mora/issues</Support>
   <Project>https://github.com/bordecielnas-alt/mora</Project>
-  <Overview>Mora, ton feed perso curé par IA. L'IA cherche des articles, vidéos et podcasts selon tes thèmes ; tu gardes ou tu masques, et le feed apprend de tes choix. Connecte ton compte Claude (Pro ou Max) dans l'onglet Réglages de l'interface. Sans compte connecté, l'app tourne en mode démo. Mora n'a pas de mot de passe : ne l'expose pas sur Internet sans reverse proxy authentifié ou VPN.</Overview>
+  <Overview>Mora, ton feed perso curé par IA. L'IA cherche des articles, vidéos et podcasts selon tes thèmes ; tu gardes ou tu masques, et le feed apprend de tes choix. Multi-comptes : chaque personne a son propre fil et connecte son propre compte Claude (Pro ou Max) dans Réglages. Au premier lancement, crée le compte administrateur : avec les champs ci-dessous, ou avec le code d'installation affiché dans les logs du conteneur. L'administrateur ajoute ensuite les autres comptes dans Réglages. Pour l'accès extérieur, place Mora derrière ton reverse proxy en HTTPS (Nginx Proxy Manager…).</Overview>
   <Category>Productivity: Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/bordecielnas-alt/mora/main/unraid/mora.xml</TemplateURL>
@@ -21,14 +21,18 @@
   <DonateLink/>
   <Requires>Un abonnement Claude (Pro ou Max) pour les vraies recherches.</Requires>
   <Config Name="Port de l'interface" Target="3000" Default="3000" Mode="tcp" Description="Port de l'interface web de Mora." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="Données" Target="/data" Default="/mnt/user/appdata/mora" Mode="rw" Description="Tes thèmes, gardés, réglages (mora.json) et la connexion du compte Claude (dossier claude). À sauvegarder." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/mora</Config>
+  <Config Name="Données" Target="/data" Default="/mnt/user/appdata/mora" Mode="rw" Description="Les comptes (users.json) et, pour chacun, son fil, ses gardés, ses réglages et sa connexion Claude (dossier users). À sauvegarder." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/mora</Config>
+  <Config Name="Administrateur : identifiant" Target="MORA_ADMIN_USER" Default="admin" Mode="" Description="Identifiant du premier compte administrateur, créé au premier lancement seulement (ignoré ensuite)." Type="Variable" Display="always" Required="false" Mask="false">admin</Config>
+  <Config Name="Administrateur : mot de passe" Target="MORA_ADMIN_PASSWORD" Default="" Mode="" Description="Mot de passe du premier compte administrateur (10 caractères minimum), utilisé au premier lancement seulement : change-le ensuite dans Réglages et tu peux vider ce champ. Vide = code d'installation affiché dans les logs." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Fuseau horaire" Target="TZ" Default="Europe/Paris" Mode="" Description="Fuseau horaire du conteneur." Type="Variable" Display="always" Required="false" Mask="false">Europe/Paris</Config>
   <Config Name="Recherche auto (heures)" Target="MORA_REFRESH_HOURS" Default="6" Mode="" Description="Une recherche est relancée au plus tard toutes les N heures." Type="Variable" Display="always" Required="false" Mask="false">6</Config>
   <Config Name="Propositions par recherche" Target="MORA_BATCH" Default="12" Mode="" Description="Nombre de contenus demandés à chaque recherche. Moins = moins de quota consommé." Type="Variable" Display="always" Required="false" Mask="false">12</Config>
   <Config Name="Réserve minimale" Target="MORA_MIN_PENDING" Default="8" Mode="" Description="Relance une recherche quand il reste moins de N contenus à voir." Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
   <Config Name="Modèle Claude" Target="MORA_CLAUDE_MODEL" Default="" Mode="" Description="Optionnel : sonnet, opus… Vide = modèle par défaut de ton compte." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Moteur" Target="MORA_BACKEND" Default="auto" Mode="" Description="auto (défaut), claude-code, api ou demo." Type="Variable" Display="advanced" Required="false" Mask="false">auto</Config>
-  <Config Name="Clé API Anthropic" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optionnel, seulement avec le moteur api (facturation à l'usage). Laisse vide pour utiliser ton abonnement." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Clé API Anthropic" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optionnel, seulement avec le moteur api (facturation à l'usage, partagée par tous les comptes). Laisse vide : chaque compte utilise son abonnement Claude." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Durée de connexion (jours)" Target="MORA_SESSION_DAYS" Default="30" Mode="" Description="Une connexion reste active tant que l'app est utilisée au moins une fois dans ce délai." Type="Variable" Display="advanced" Required="false" Mask="false">30</Config>
+  <Config Name="Comptes" Target="MORA_AUTH" Default="on" Mode="" Description="on (recommandé) : connexion obligatoire. off : un seul utilisateur sans mot de passe, à réserver à un réseau de confiance." Type="Variable" Display="advanced" Required="false" Mask="false">on</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Utilisateur propriétaire des fichiers de /data (99 = nobody sur Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Groupe propriétaire des fichiers de /data (100 = users sur Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 </Container>

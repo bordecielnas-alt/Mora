@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connexion · Mora</title>
+<meta name="theme-color" content="#0E6B6F">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/themes.css">
+<script>try{const l=JSON.parse(localStorage.getItem("mora-look")||"{}");if(l.mode&&l.mode!=="auto")document.documentElement.dataset.theme=l.mode;if(l.palette&&l.palette!=="lagune")document.documentElement.dataset.palette=l.palette}catch{}</script>
+</head>
+<body>
+<div class="app authpage">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 20 L50 41 L76 20 V80 H58 L50 68 L42 80 H24 Z" fill="currentColor" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/></svg>
+      Mora
+    </div>
+  </header>
+  <main>
+    <form class="block authform" id="loginForm" hidden>
+      <h2>Connexion</h2>
+      <p class="sub">Connecte-toi pour retrouver ton fil.</p>
+      <label>Identifiant<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      <div class="banner err" data-err hidden></div>
+      <button class="btn" type="submit">Se connecter</button>
+      <p class="small">Pas de compte ? Demande à la personne qui gère ce Mora de t’en créer un.</p>
+    </form>
+
+    <form class="block authform" id="setupForm" hidden>
+      <h2>Bienvenue sur Mora</h2>
+      <p class="sub">Crée le compte administrateur. Tu pourras ensuite ajouter d’autres comptes dans Réglages ; chacun aura son propre fil et connectera son propre compte Claude.</p>
+      <label>Code d’installation<input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+        <span class="small">Affiché dans les logs de Mora au démarrage (sur Unraid : icône du conteneur › Logs).</span></label>
+      <label>Identifiant<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="2" maxlength="32"></label>
+      <label>Mot de passe<input name="password" type="password" autocomplete="new-password" required minlength="10">
+        <span class="small">10 caractères minimum. Une phrase de quelques mots, c’est très bien.</span></label>
+      <label>Confirme le mot de passe<input name="password2" type="password" autocomplete="new-password" required minlength="10"></label>
+      <div class="banner err" data-err hidden></div>
+      <button class="btn" type="submit">Créer le compte</button>
+    </form>
+  </main>
+</div>
+<script src="/login.js"></script>
+</body>
+</html>

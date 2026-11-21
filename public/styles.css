@@ -290,3 +290,7 @@ h2.h3{margin-top:22px;font-size:17px}
 .banner.recov{display:flex;flex-direction:column;gap:8px;margin-top:0}
 .codes{font-family:var(--f-mono);font-size:14px;background:var(--surface);border-radius:8px;padding:10px 12px;margin:0;columns:2;line-height:1.7;user-select:all}
 .twofa .row2{display:flex;gap:8px;flex-wrap:wrap}
+
+/* --- Shorts : vidéo courte verticale --- */
+.media.vertical{aspect-ratio:9/16;width:min(100%,calc(70vh * 9 / 16),300px);margin:0 auto;border-radius:12px;overflow:hidden}
+.post .media.vertical{margin-block:2px 4px}

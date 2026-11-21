@@ -1,6 +1,6 @@
 # Mora
 
-Ton feed perso. L'IA cherche des contenus sur le web selon tes thèmes (articles, vidéos, podcasts, liens).
+Ton feed perso. L'IA cherche des contenus sur le web selon tes thèmes (articles, vidéos, shorts, podcasts, liens).
 Tu fais défiler, tu gardes (♥) ou tu masques (« Pas pour moi »). Le feed apprend de tes choix, en silence.
 
 ## Avec Docker (Unraid, NAS, serveur)
@@ -86,7 +86,7 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   au moins une seconde à moitié visible (un survol rapide ne compte pas) ; une vidéo lancée compte aussi. Elle ne disparaît
   pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as aimée ou gardée. L'onglet « Déjà vu »,
   à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
-  Les vidéos YouTube et Vimeo montrent leur miniature et se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence).
+  Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok montrent leur miniature et se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence).
   Le bouton de partage ouvre le menu de partage du téléphone (ou copie le lien sur l'ordinateur).
   Avant d'arriver dans le fil, chaque lien est vérifié : les pages mortes ou réservées aux abonnés sont écartées.
 - **Recherche ponctuelle** (loupe en haut) : « trouve-moi les JO d'hiver cette semaine ». Les résultats arrivent dans un mini-fil à part, sans créer de thème.
@@ -97,7 +97,7 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   - ton compte Claude et tes thèmes, avec les thèmes que Mora te suggère d'après tes gardés ;
   - **Mes règles** : mots-clés interdits, sources bloquées, sources épinglées (suivies en priorité) ;
   - **Langue des contenus** : la langue d'origine à privilégier (pas des traductions), et un curseur pour le mélange avec l'anglais (par exemple 90 % français, 10 % anglais) ;
-  - **Formats recherchés** : le poids des articles, vidéos et podcasts dans les recherches ;
+  - **Formats recherchés** : le poids des articles, vidéos, shorts (vidéos courtes verticales : YouTube Shorts, TikTok, Reels) et podcasts dans les recherches ;
   - **Sortir de ma bulle** : la part de contenus choisis hors de tes thèmes (marqués « Hors bulle ») ;
   - **Apparence** : clair, sombre ou automatique, la palette de couleurs, et la lecture auto des vidéos ;
   - **Masqués** : ce que tu as masqué ces 15 derniers jours, avec « Remettre » pour le replacer dans ton fil.

@@ -1,6 +1,6 @@
 // Service worker : garde l'interface en cache pour qu'elle s'ouvre comme une app.
 // Les données (/api) passent toujours par le réseau.
-const CACHE = "mora-v12";
+const CACHE = "mora-v13";
 const SHELL = ["/styles.css", "/themes.css", "/app.js", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {

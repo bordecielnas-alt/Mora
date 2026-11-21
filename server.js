@@ -181,7 +181,7 @@ function keptMarkdown() {
   const kept = S().items.filter((i) => i.status === "keep").sort((a, b) => (b.decidedAt || "").localeCompare(a.decidedAt || ""));
   const byTheme = {};
   kept.forEach((i) => (byTheme[i.theme] ||= []).push(i));
-  const TL = { article: "Article", video: "Vidéo", podcast: "Podcast", lien: "Lien" };
+  const TL = { article: "Article", video: "Vidéo", short: "Short", podcast: "Podcast", lien: "Lien" };
   const out = [`# Mes gardés Mora`, ``, `Exporté le ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · ${kept.length} contenu${kept.length > 1 ? "s" : ""}`, ``];
   for (const [theme, its] of Object.entries(byTheme)) {
     out.push(`## ${theme}`, ``);
@@ -351,7 +351,7 @@ const routes = [
     if (Number.isFinite(Number(body.bubble)) && body.bubble !== null) p.bubble = Math.min(50, pct(body.bubble));
     if (body.mix && typeof body.mix === "object") {
       const mix = { ...p.mix };
-      for (const k of ["article", "video", "podcast"]) if (Number.isFinite(Number(body.mix[k]))) mix[k] = pct(body.mix[k]);
+      for (const k of ["article", "video", "short", "podcast"]) if (Number.isFinite(Number(body.mix[k]))) mix[k] = pct(body.mix[k]);
       if (Object.values(mix).some((v) => v > 0)) p.mix = mix; // au moins un format
     }
     for (const k of ["blockedWords", "blockedSources", "pinnedSources"])
@@ -446,7 +446,7 @@ function stats() {
     return { theme: t, weight: S().weights.theme[t] ?? 1, seen: its.length, liked: its.filter((i) => i.liked).length,
       kept: its.filter((i) => i.status === "keep").length, tossed: its.filter((i) => i.status === "toss").length };
   });
-  const formats = ["article", "video", "podcast", "lien"];
+  const formats = ["article", "video", "short", "podcast", "lien"];
   const grid = themes.map((t) => formats.map((f) => {
     const its = seen.filter((i) => i.theme === t && i.type === f);
     return { pos: its.filter(pos).length, toss: its.filter((i) => i.status === "toss").length, seen: its.length };

@@ -5,12 +5,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const ICON = {
   article: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
   video: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  short: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 9.5v5l4-2.5z" fill="currentColor"/></svg>',
   podcast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   lien: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
 };
 const HEART = '<path d="M12 21s-7.5-4.6-9.3-9.2C1.4 8.4 3.6 5 7 5c2 0 3.4 1.1 5 3 1.6-1.9 3-3 5-3 3.4 0 5.6 3.4 4.3 6.8C19.5 16.4 12 21 12 21z"/>';
 const BOOKMARK = '<path d="M6 4h12v17l-6-4.5L6 21z"/>';
-const TYPE_LABEL = { article: "Article", video: "Vidéo", podcast: "Podcast", lien: "Lien" };
+const TYPE_LABEL = { article: "Article", video: "Vidéo", short: "Short", podcast: "Podcast", lien: "Lien" };
 const hueOf = (t) => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const grad = (t) => { const a = hueOf(t); return `linear-gradient(135deg,hsl(${a} 55% 36%),hsl(${(a + 35) % 360} 60% 50%))`; };
 const initials = (s) => String(s).replace(/^(YouTube|Radio France|France Culture|Le Monde)\s*·\s*/, "").split(/[\s.·]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -69,7 +70,7 @@ function postHTML(p) {
   return `<article class="post" data-id="${p.id}">
     <div class="ph"><span class="avatar" style="background:${grad(p.source)}">${esc(initials(p.source))}</span>
       <span class="who"><b>${esc(p.source)}</b><span>${TYPE_LABEL[p.type] || "Lien"} · ${ago(p.foundAt)}</span></span><span class="chip${p.theme === "Hors bulle" ? " out" : ""}">${esc(p.theme)}</span></div>
-    <div class="media${img ? " has-img" : ""}" style="background:${grad(p.theme)}" data-dbl="${p.id}" data-open="${esc(p.url)}"${v ? ` data-embed="${esc(v.embed)}"` : ""} title="Touche pour ouvrir, double-tape pour aimer">
+    <div class="media${img ? " has-img" : ""}${p.type === "short" || v?.vertical ? " vertical" : ""}" style="background:${grad(p.theme)}" data-dbl="${p.id}" data-open="${esc(p.url)}"${v ? ` data-embed="${esc(v.embed)}"` : ""} title="Touche pour ouvrir, double-tape pour aimer">
       ${img}<span class="big">${ICON[p.type] || ICON.lien}</span>
       <span class="type">${ICON[p.type] || ICON.lien}${TYPE_LABEL[p.type] || "Lien"}</span>${p.duration ? `<span class="dur">${esc(p.duration)}</span>` : ""}
       <span class="pop"><svg viewBox="0 0 24 24"><g fill="currentColor">${HEART}</g></svg></span></div>
@@ -120,9 +121,12 @@ function videoOf(url) {
   else if (h === "youtube.com" || h === "youtube-nocookie.com") id = u.searchParams.get("v") || (u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{6,})/) || [])[1];
   if (id && /^[\w-]{6,}$/.test(id)) {
     const t = Number(String(u.searchParams.get("t") || u.searchParams.get("start") || "0").replace(/s$/, "")) || 0;
-    return { thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    return { thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, vertical: u.pathname.startsWith("/shorts/"),
       embed: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1${t ? `&start=${t}` : ""}` };
   }
+  // TikTok : lecteur officiel, vertical
+  const tt = (h === "tiktok.com" || h.endsWith(".tiktok.com")) && u.pathname.match(/\/video\/(\d{6,})/);
+  if (tt) return { thumb: null, vertical: true, embed: `https://www.tiktok.com/player/v1/${tt[1]}?autoplay=1&muted=1&loop=1&rel=0` };
   const vm = h === "vimeo.com" && u.pathname.match(/^\/(\d+)/);
   if (vm) return { thumb: null, embed: `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&playsinline=1&dnt=1` };
   return null;
@@ -423,7 +427,7 @@ function renderKept() {
   $("#themeFilters").innerHTML = [`<button aria-pressed="${themeFilter === "tout"}" data-tf="tout">Tous les thèmes</button>`,
     ...themes.map((t) => `<button aria-pressed="${t === themeFilter}" data-tf="${esc(t)}">${esc(t)} <span class="n">${counts[t]}</span></button>`)].join("");
   $("#themeFilters").querySelectorAll("button").forEach((b) => (b.onclick = () => { themeFilter = b.dataset.tf; renderKept(); }));
-  const types = ["tout", "star", "article", "video", "podcast", "lien"];
+  const types = ["tout", "star", "article", "video", "short", "podcast", "lien"];
   const lbl = { tout: "Tous formats", star: "★ Favoris", ...TYPE_LABEL };
   $("#filters").innerHTML = types.map((t) => `<button aria-pressed="${t === filter}" data-f="${t}">${lbl[t]}</button>`).join("");
   $("#filters").querySelectorAll("button").forEach((b) => (b.onclick = () => { filter = b.dataset.f; renderKept(); }));
@@ -519,7 +523,7 @@ $("#addForm").addEventListener("submit", async (e) => {
 
 /* ---------------- Réglages : recherche ---------------- */
 const LANG_FR = { fr: "Français", en: "Anglais", es: "Espagnol", de: "Allemand", it: "Italien", pt: "Portugais" };
-const MIX = [["article", "Articles"], ["video", "Vidéos"], ["podcast", "Podcasts"]];
+const MIX = [["article", "Articles"], ["video", "Vidéos"], ["short", "Shorts"], ["podcast", "Podcasts"]];
 async function loadPrefs() {
   try { const r = await api("/prefs"); state.prefs = r.prefs; state.langs = r.langs; applyLook(); renderPrefs(); } catch {}
 }
@@ -690,7 +694,7 @@ function renderStats(st) {
       <span class="small">${t.liked} j’aime · ${t.kept} gardés · ${t.tossed} masqués · ${t.seen} vus</span></div>`).join("");
   // Heatmap thème × format : intensité = contenus aimés ou gardés.
   const max = Math.max(1, ...st.grid.flat().map((c) => c.pos));
-  const fl = { article: "Article", video: "Vidéo", podcast: "Podcast", lien: "Lien" };
+  const fl = TYPE_LABEL;
   const heat = `<div class="heat" style="grid-template-columns:minmax(70px,1.3fr) repeat(${st.formats.length},1fr)">
       <span></span>${st.formats.map((f) => `<span class="hd">${fl[f]}</span>`).join("")}
       ${st.themes.map((t, r) => `<span class="rl">${esc(t.theme)}</span>${st.grid[r].map((c, k) => {

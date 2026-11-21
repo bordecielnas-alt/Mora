@@ -89,8 +89,10 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as aimée ou gardée. L'onglet « Déjà vu »,
   à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
   Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok se lisent directement dans l'app :
-  elles se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence), le bouton « Activer le son »
-  ou un toucher sur la vidéo la relance avec le son, et les boutons en haut à droite passent en plein écran ou la ferment.
+  elles se lancent toutes seules quand elles arrivent à l'écran et s'arrêtent quand elles en sortent (réglable dans
+  Réglages › Apparence). Les navigateurs imposent le muet tant qu'on n'a pas touché la page : après le premier
+  « Activer le son » (ou un toucher sur une vidéo), toutes les suivantes du fil démarrent avec le son, jusqu'à ce qu'on le
+  coupe. Les boutons en haut à droite coupent le son, passent en plein écran ou ferment la vidéo.
   Le titre et la flèche ↗ ouvrent toujours la source d'origine. Derrière un proxy (Nginx Proxy Manager…), garde
   `Referrer-Policy: strict-origin-when-cross-origin` (le réglage de Mora) : YouTube refuse de lire si le referrer est supprimé.
   Le bouton de partage ouvre le menu de partage du téléphone (ou copie le lien sur l'ordinateur).

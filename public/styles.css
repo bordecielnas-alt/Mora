@@ -315,7 +315,7 @@ h2.h3{margin-top:22px;font-size:17px}
 .media .vctl{position:absolute;top:8px;right:8px;z-index:3;display:flex;gap:6px;pointer-events:none}
 .media .vctl button{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 11px;background:rgba(0,0,0,.62);color:#fff;font:600 12.5px/1 var(--f-body);cursor:pointer;backdrop-filter:blur(6px)}
 .media .vctl button svg{width:16px;height:16px}
-.media .vctl [data-vfull],.media .vctl [data-vstop]{padding:7px}
+.media .vctl [data-vfull],.media .vctl [data-vstop],.media .vctl [data-vmute]{padding:7px}
 .media:fullscreen{aspect-ratio:auto;width:100vw;height:100vh;max-width:none;border-radius:0;background:#000!important;padding:0}
 .media:fullscreen .vctl{top:14px;right:14px}
 .media:-webkit-full-screen{width:100vw;height:100vh;max-width:none;border-radius:0;background:#000!important}

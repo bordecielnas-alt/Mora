@@ -146,8 +146,12 @@ function pickVideo() {
   const cur = playing?.isConnected ? ratios.get(playing) || 0 : 0;
   // on garde la vidéo en cours tant qu'elle reste un peu visible ; celle lancée à la main ne dépend pas de la lecture auto
   if (playing && (cur < 0.3 || (off && !playing.classList.contains("sound")))) stopVideo(playing);
-  if (!off && best && !playing) playVideo(best);
+  // la suivante prend le relais dès qu'elle est mieux visible que celle en cours
+  if (!off && best && (!playing || (best !== playing && cur < 0.6))) playVideo(best, soundOn);
 }
+// Une fois le son activé (par un toucher), les vidéos suivantes du fil démarrent avec le son, comme sur TikTok.
+// Les navigateurs refusent le son avant une interaction, d'où le démarrage en muet tant qu'il n'a pas été activé.
+let soundOn = false;
 // Même lien, avec le son : YouTube « mute », TikTok et Vimeo « muted ».
 const withSound = (url) => url.replace(/([?&])(mute|muted)=1/, "$1$2=0");
 function playVideo(m, sound = false) {
@@ -159,7 +163,7 @@ function playVideo(m, sound = false) {
   f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen; web-share"; f.allowFullscreen = true;
   f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube refuse de lire sans l'origine de la page
   const ctl = document.createElement("div"); ctl.className = "vctl";
-  ctl.innerHTML = (sound ? "" : `<button type="button" data-vsound>${ICON_SOUND}Activer le son</button>`)
+  ctl.innerHTML = (sound ? `<button type="button" data-vmute aria-label="Couper le son" title="Couper le son">${ICON_MUTE}</button>` : `<button type="button" data-vsound>${ICON_SOUND}Activer le son</button>`)
     + (fsOK() ? `<button type="button" data-vfull aria-label="Plein écran" title="Plein écran">${ICON_FULL}</button>` : "")
     + `<button type="button" data-vstop aria-label="Fermer la vidéo" title="Fermer la vidéo">${ICON_CLOSE}</button>`;
   m.append(f, ctl); m.classList.add("playing"); m.classList.toggle("sound", sound); playing = m;
@@ -177,6 +181,7 @@ function fullVideo(m) {
   if (go) Promise.resolve(go.call(m)).then(() => screen.orientation?.lock?.(m.classList.contains("vertical") ? "portrait" : "landscape").catch(() => {})).catch(() => {});
 }
 const ICON_SOUND = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`;
+const ICON_MUTE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>`;
 const ICON_FULL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 function observeVideos() { if (videoObs) document.querySelectorAll("#stream .media[data-embed], #seenList .media[data-embed], #questList .media[data-embed]").forEach((m) => videoObs.observe(m)); }
@@ -388,14 +393,15 @@ function onPostsClick(e) {
   else if ((x = c("[data-undo]"))) { state.justTossed = null; decide(x.dataset.undo, "none"); }
   else if ((x = c("[data-reason]"))) setReason(x.dataset.rid, x.dataset.reason);
   else if ((x = c("[data-share]"))) share(findItem(x.dataset.share));
-  else if ((x = c("[data-vsound]"))) playVideo(x.closest(".media"), true);
+  else if ((x = c("[data-vsound]"))) { soundOn = true; playVideo(x.closest(".media"), true); }
+  else if ((x = c("[data-vmute]"))) { soundOn = false; playVideo(x.closest(".media"), false); }
   else if ((x = c("[data-vfull]"))) fullVideo(x.closest(".media"));
   else if ((x = c("[data-vstop]"))) { const m = x.closest(".media"); m.dataset.closed = "1"; stopVideo(m); } // fermée : plus de relance auto
   else if ((x = c("[data-open]"))) {
     clearTimeout(openTimer);
     if (e.detail > 1) return; // deuxième toucher : c'est un double-tap
     const m = x;
-    openTimer = setTimeout(() => m.dataset.embed ? playVideo(m, true) : window.open(m.dataset.open, "_blank", "noopener,noreferrer"), 280);
+    openTimer = setTimeout(() => m.dataset.embed ? (soundOn = true, playVideo(m, true)) : window.open(m.dataset.open, "_blank", "noopener,noreferrer"), 280);
   }
 }
 function onPostsDbl(e) {

@@ -74,6 +74,8 @@ Pas de clé API, pas de facturation à l'usage : les recherches comptent dans le
 Les recherches automatiques sont espacées d'au moins 30 minutes. Pour économiser ton quota :
 `MORA_REFRESH_HOURS=12`, `MORA_BATCH=8` ou `MORA_CLAUDE_MODEL=sonnet` dans un fichier `.env` (modèle dans `.env.example`).
 
+Ce qui coûte, c'est surtout la recherche web : chaque recherche ajoute environ 15 000 jetons de résultats à lire. Mora limite donc le nombre de recherches web par appel (Réglages › Profondeur de recherche : 6, 12 ou 25), n'ouvre pas les pages (il vérifie les liens lui-même), et remplace la longue consigne système de Claude Code par une consigne courte. La consommation réelle est visible dans l'onglet Stats.
+
 En mode local, la connexion est celle de Claude Code : si tu utilises déjà Claude Code sur cet ordinateur, Mora partage la même connexion. Avec les comptes, chaque compte a sa propre connexion Claude.
 
 ## Comment ça marche

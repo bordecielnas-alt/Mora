@@ -248,8 +248,8 @@ function nextPage(n = PAGE, maxMin = 0) {
   return fresh;
 }
 // Déjà vu (signalé par le client lors d'une visite précédente) : quitte le fil au chargement suivant,
-// sauf ce que tu as gardé, qui reste toujours. Les j'aime partent comme le reste et se retrouvent dans Gardés › Aimés.
-const stays = (i) => !i.seenAt || i.status === "keep";
+// Tout part, même ce que tu as gardé ou aimé : on le retrouve dans Gardés (et Gardés › Aimés).
+const stays = (i) => !i.seenAt;
 function streamView() {
   const since = Date.now() - 3 * 86400e3;
   return S().items

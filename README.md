@@ -86,8 +86,8 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   pourquoi (déjà vu, trop long, source bof, sujet hors cible, trop basique), et le feed n'ajuste alors que ce qui compte.
   **Déjà vu** : une carte compte comme vue quand elle sort par le haut de l'écran pendant que tu descends, après être restée
   au moins une seconde à moitié visible (un survol rapide ne compte pas) ; une vidéo lancée compte aussi. Elle ne disparaît
-  pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as gardée. Ce que tu as aimé
-  part aussi, et se retrouve dans **Gardés › Aimés** (où les vidéos se lisent aussi). L'onglet « Déjà vu »,
+  pas sous ton doigt : elle quitte le fil au prochain chargement, même si tu l'as gardée ou aimée : tu la retrouves
+  dans **Gardés** ou **Gardés › Aimés** (où les vidéos se lisent aussi). L'onglet « Déjà vu »,
   à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
   Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok se lisent directement dans l'app :
   elles se lancent toutes seules quand elles arrivent à l'écran et s'arrêtent quand elles en sortent (réglable dans

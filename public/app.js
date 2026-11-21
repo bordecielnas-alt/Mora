@@ -272,7 +272,7 @@ async function loadNewest() {
 // « Déjà vu » : une carte est vue quand elle sort entièrement par le haut de l'écran pendant que tu
 // descends, après être restée au moins 1 s à moitié visible (un survol rapide ne compte pas).
 // Une vidéo lancée compte aussi. La carte reste affichée pendant cette visite et quitte le fil au
-// prochain chargement (sauf si elle est gardée). Le serveur garde la date pour l'onglet « Déjà vu ».
+// prochain chargement (gardée ou aimée, on la retrouve dans Gardés). Le serveur garde la date pour l'onglet « Déjà vu ».
 const SEEN_DWELL = 1000;
 const seenSent = new Set(), seenQueue = new Set(), seenTimers = new Map(), dwelt = new Set();
 function markSeen(id) { if (id && !seenSent.has(id)) { seenSent.add(id); seenQueue.add(id); } }

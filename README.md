@@ -88,7 +88,11 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   au moins une seconde à moitié visible (un survol rapide ne compte pas) ; une vidéo lancée compte aussi. Elle ne disparaît
   pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as aimée ou gardée. L'onglet « Déjà vu »,
   à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
-  Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok montrent leur miniature et se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence).
+  Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok se lisent directement dans l'app :
+  elles se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence), le bouton « Activer le son »
+  ou un toucher sur la vidéo la relance avec le son, et les boutons en haut à droite passent en plein écran ou la ferment.
+  Le titre et la flèche ↗ ouvrent toujours la source d'origine. Derrière un proxy (Nginx Proxy Manager…), garde
+  `Referrer-Policy: strict-origin-when-cross-origin` (le réglage de Mora) : YouTube refuse de lire si le referrer est supprimé.
   Le bouton de partage ouvre le menu de partage du téléphone (ou copie le lien sur l'ordinateur).
   Avant d'arriver dans le fil, chaque lien est vérifié : les pages mortes ou réservées aux abonnés sont écartées.
 - **Recherche ponctuelle** (loupe en haut) : « trouve-moi les JO d'hiver cette semaine ». Les résultats arrivent dans un mini-fil à part, sans créer de thème.

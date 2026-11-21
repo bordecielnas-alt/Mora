@@ -70,7 +70,7 @@ function postHTML(p) {
   return `<article class="post" data-id="${p.id}">
     <div class="ph"><span class="avatar" style="background:${grad(p.source)}">${esc(initials(p.source))}</span>
       <span class="who"><b>${esc(p.source)}</b><span>${TYPE_LABEL[p.type] || "Lien"} · ${ago(p.foundAt)}</span></span><span class="chip${p.theme === "Hors bulle" ? " out" : ""}">${esc(p.theme)}</span></div>
-    <div class="media${img ? " has-img" : ""}${p.type === "short" || v?.vertical ? " vertical" : ""}" style="background:${grad(p.theme)}" data-dbl="${p.id}" data-open="${esc(p.url)}"${v ? ` data-embed="${esc(v.embed)}"` : ""} title="Touche pour ouvrir, double-tape pour aimer">
+    <div class="media${img ? " has-img" : ""}${p.type === "short" || v?.vertical ? " vertical" : ""}" style="background:${grad(p.theme)}" data-dbl="${p.id}" data-open="${esc(p.url)}"${v ? ` data-embed="${esc(v.embed)}"` : ""} title="${v ? "Touche pour lire ici" : "Touche pour ouvrir"}, double-tape pour aimer">
       ${img}<span class="big">${ICON[p.type] || ICON.lien}</span>
       <span class="type">${ICON[p.type] || ICON.lien}${TYPE_LABEL[p.type] || "Lien"}</span>${p.duration ? `<span class="dur">${esc(p.duration)}</span>` : ""}
       <span class="pop"><svg viewBox="0 0 24 24"><g fill="currentColor">${HEART}</g></svg></span></div>
@@ -112,7 +112,8 @@ function renderBanner() {
 }
 
 /* ---------------- Vidéos : miniature et lecture auto ---------------- */
-// YouTube et Vimeo : miniature déduite du lien, et lecteur intégré lancé en muet quand la vidéo est bien visible.
+// YouTube, TikTok et Vimeo : miniature déduite du lien et lecteur intégré, directement dans l'app.
+// La lecture automatique démarre en muet (les navigateurs l'exigent) ; un toucher lance la vidéo avec le son.
 function videoOf(url) {
   let u; try { u = new URL(url); } catch { return null; }
   const h = u.hostname.replace(/^(www|m|music)\./, "");
@@ -140,23 +141,45 @@ const videoObs = "IntersectionObserver" in window ? new IntersectionObserver((en
 }, { root: $("main"), threshold: [0, 0.3, 0.6, 0.9] }) : null;
 function pickVideo() {
   let best = null, r = 0.6;
-  for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r) { best = el; r = v; } }
+  for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r && el.closest("#stream") && !el.dataset.closed) { best = el; r = v; } }
   const off = !autoplayOn() || $("#v-tri").hidden || state.seg !== "new";
   const cur = playing?.isConnected ? ratios.get(playing) || 0 : 0;
-  if (playing && (off || cur < 0.3)) stopVideo(playing); // on garde la vidéo en cours tant qu'elle reste un peu visible
+  // on garde la vidéo en cours tant qu'elle reste un peu visible ; celle lancée à la main ne dépend pas de la lecture auto
+  if (playing && (cur < 0.3 || (off && !playing.classList.contains("sound")))) stopVideo(playing);
   if (!off && best && !playing) playVideo(best);
 }
-function playVideo(m) {
-  if (playing) stopVideo(playing);
+// Même lien, avec le son : YouTube « mute », TikTok et Vimeo « muted ».
+const withSound = (url) => url.replace(/([?&])(mute|muted)=1/, "$1$2=0");
+function playVideo(m, sound = false) {
+  if (playing && playing !== m) stopVideo(playing);
+  m.querySelector("iframe.embed")?.remove(); m.querySelector(".vctl")?.remove();
   markSeen(m.closest(".post")?.dataset.id); // une vidéo lancée compte comme vue
   const f = document.createElement("iframe");
-  f.src = m.dataset.embed; f.className = "embed"; f.title = "Lecture de la vidéo";
-  f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
-  f.referrerPolicy = "strict-origin-when-cross-origin";
-  m.appendChild(f); m.classList.add("playing"); playing = m;
+  f.src = sound ? withSound(m.dataset.embed) : m.dataset.embed; f.className = "embed"; f.title = "Lecture de la vidéo";
+  f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen; web-share"; f.allowFullscreen = true;
+  f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube refuse de lire sans l'origine de la page
+  const ctl = document.createElement("div"); ctl.className = "vctl";
+  ctl.innerHTML = (sound ? "" : `<button type="button" data-vsound>${ICON_SOUND}Activer le son</button>`)
+    + (fsOK() ? `<button type="button" data-vfull aria-label="Plein écran" title="Plein écran">${ICON_FULL}</button>` : "")
+    + `<button type="button" data-vstop aria-label="Fermer la vidéo" title="Fermer la vidéo">${ICON_CLOSE}</button>`;
+  m.append(f, ctl); m.classList.add("playing"); m.classList.toggle("sound", sound); playing = m;
+  if (videoObs) { ratios.set(m, 1); videoObs.observe(m); }
 }
-function stopVideo(m) { m.querySelector("iframe.embed")?.remove(); m.classList.remove("playing"); if (playing === m) playing = null; }
-function observeVideos() { if (videoObs) $("#stream").querySelectorAll(".media[data-embed]").forEach((m) => videoObs.observe(m)); }
+function stopVideo(m) {
+  if (document.fullscreenElement === m) document.exitFullscreen?.().catch(() => {});
+  m.querySelector("iframe.embed")?.remove(); m.querySelector(".vctl")?.remove();
+  m.classList.remove("playing", "sound"); if (playing === m) playing = null;
+}
+const fsOK = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+function fullVideo(m) {
+  if (document.fullscreenElement || document.webkitFullscreenElement) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  const go = m.requestFullscreen || m.webkitRequestFullscreen;
+  if (go) Promise.resolve(go.call(m)).then(() => screen.orientation?.lock?.(m.classList.contains("vertical") ? "portrait" : "landscape").catch(() => {})).catch(() => {});
+}
+const ICON_SOUND = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`;
+const ICON_FULL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>`;
+const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+function observeVideos() { if (videoObs) document.querySelectorAll("#stream .media[data-embed], #seenList .media[data-embed], #questList .media[data-embed]").forEach((m) => videoObs.observe(m)); }
 
 // Met à jour le fil sans tout reconstruire : un post inchangé garde son nœud (et sa vidéo en cours),
 // un post modifié garde sa zone vidéo si elle n'a pas changé.
@@ -353,7 +376,7 @@ async function share(p) {
   catch { prompt("Copie ce lien :", p.url); }
 }
 
-// Un toucher sur l'image ouvre le contenu dans un nouvel onglet ; un double-toucher l'aime.
+// Un toucher sur l'image lit la vidéo ici (avec le son) ou ouvre l'article dans un nouvel onglet ; un double-toucher l'aime.
 // On attend un court instant avant d'ouvrir, pour laisser passer un éventuel deuxième toucher.
 let openTimer = null;
 function onPostsClick(e) {
@@ -365,10 +388,14 @@ function onPostsClick(e) {
   else if ((x = c("[data-undo]"))) { state.justTossed = null; decide(x.dataset.undo, "none"); }
   else if ((x = c("[data-reason]"))) setReason(x.dataset.rid, x.dataset.reason);
   else if ((x = c("[data-share]"))) share(findItem(x.dataset.share));
+  else if ((x = c("[data-vsound]"))) playVideo(x.closest(".media"), true);
+  else if ((x = c("[data-vfull]"))) fullVideo(x.closest(".media"));
+  else if ((x = c("[data-vstop]"))) { const m = x.closest(".media"); m.dataset.closed = "1"; stopVideo(m); } // fermée : plus de relance auto
   else if ((x = c("[data-open]"))) {
     clearTimeout(openTimer);
     if (e.detail > 1) return; // deuxième toucher : c'est un double-tap
-    openTimer = setTimeout(() => window.open(x.dataset.open, "_blank", "noopener,noreferrer"), 280);
+    const m = x;
+    openTimer = setTimeout(() => m.dataset.embed ? playVideo(m, true) : window.open(m.dataset.open, "_blank", "noopener,noreferrer"), 280);
   }
 }
 function onPostsDbl(e) {

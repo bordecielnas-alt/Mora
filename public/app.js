@@ -147,8 +147,8 @@ function schedulePick() { clearTimeout(pickTimer); pickTimer = setTimeout(pickVi
 function pickVideo() {
   clearTimeout(pickTimer);
   let best = null, r = 0.6;
-  for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r && el.closest("#stream") && !el.dataset.closed) { best = el; r = v; } }
-  const off = !autoplayOn() || $("#v-tri").hidden || state.seg !== "new";
+  for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r && el.closest(state.seg === "seen" ? "#seenList" : "#stream") && !el.dataset.closed) { best = el; r = v; } }
+  const off = !autoplayOn() || $("#v-tri").hidden;
   const cur = playing?.isConnected ? ratios.get(playing) || 0 : 0;
   // la vidéo en cours continue tant qu'il en reste un bout à l'écran ; elle ne s'arrête qu'une fois vraiment sortie (avec un délai)
   const gone = !playing?.isConnected || cur < 0.08 || (off && !playing.classList.contains("sound") && !playing.closest("#seenList, #questList, #likedList"));
@@ -240,7 +240,7 @@ function renderStream() {
   const more = $("#more");
   if (s.pending > 0) more.innerHTML = `<span>Chargement des propositions suivantes…</span>`;
   else if (s.refreshing) more.innerHTML = `<strong>Recherche en cours</strong><span>L’IA cherche de nouveaux contenus sur le web. Ça prend une à deux minutes.</span>`;
-  else if (s.mode === "ia") more.innerHTML = `<strong>Tu es à jour</strong><span>De nouvelles propositions arrivent automatiquement. Tu peux aussi lancer une recherche maintenant.</span><button class="btn" id="refill">Chercher maintenant</button>`;
+  else if (s.mode === "ia") more.innerHTML = `<strong>${shown.length ? "Tu es à jour" : "Rien de nouveau pour l’instant"}</strong><span>${s.nextRefresh ? `Prochaine recherche automatique ${atTime(s.nextRefresh)}.` : "Recherche automatique coupée (Réglages › Recherche automatique)."} Ce que tu as déjà vu est dans « Déjà vu », tes gardés et tes j’aime dans Gardés.</span><button class="btn" id="refill">Chercher maintenant</button>`;
   else more.innerHTML = `<strong>Tu es à jour</strong><span>Tu as vu tous les contenus d’exemple.</span>`;
   const rf = $("#refill"); if (rf) rf.onclick = startRefresh;
   const kept = state.stream.filter((p) => p.status === "keep").length;
@@ -324,6 +324,7 @@ function renderSeen() {
   const items = state.seen.filter((p) => p.status !== "removed" && (p.status !== "toss" || p.id === state.justTossed));
   if (!items.length) { box.innerHTML = `<div class="empty-stream">Rien de vu ces 7 derniers jours. Une carte compte comme vue quand tu la fais défiler vers le haut après l’avoir regardée au moins une seconde.</div>`; return; }
   patchList(box, items);
+  observeVideos(); if (state.seg === "seen") schedulePick();
 }
 function setSeg(seg) {
   state.seg = seg;
@@ -747,6 +748,9 @@ function renderLook() {
 }
 
 /* ---------------- Réglages : masqués ---------------- */
+// « vers 16 h 30 », ou « demain vers 8 h 00 »
+const atTime = (iso) => { const d = new Date(iso), t = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", " h ");
+  return (d.toDateString() === new Date().toDateString() ? "vers " : d.getDate() === new Date(Date.now() + 86400e3).getDate() ? "demain vers " : `le ${d.toLocaleDateString("fr-FR")} vers `) + t; };
 const agoDays = (iso) => { const d = Math.floor((Date.now() - Date.parse(iso)) / 86400e3); return d < 1 ? "aujourd’hui" : d === 1 ? "hier" : `il y a ${d} j`; };
 async function loadHidden() { try { state.hidden = await api("/hidden"); renderHidden(); } catch {} }
 function renderHidden() {

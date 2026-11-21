@@ -263,10 +263,17 @@ function seenView() {
     .filter((i) => i.seenAt && Date.parse(i.seenAt) >= since && ["shown", "keep"].includes(i.status))
     .sort((a, b) => b.seenAt.localeCompare(a.seenAt));
 }
+// Prochaine recherche automatique prévue (null si coupée). Le planificateur passe toutes les 15 min.
+function nextRefresh() {
+  const h = userHours(); if (!h || !aiReady()) return null;
+  const due = S().lastRefresh ? Date.parse(S().lastRefresh) + h * 3600e3 : Date.now();
+  return new Date(Math.max(due, Date.now() + 60e3)).toISOString();
+}
 function status() {
   return {
     mode: aiReady() ? "ia" : "demo", backend: BACKEND, needsLogin: BACKEND === "claude-code" && !account.accountStatus().loggedIn, model: BACKEND_LABEL, refreshing: !!U().refreshing, translating: !!U().translating, questing: !!U().questing, pending: pending(),
     lastRefresh: S().lastRefresh, lastError: S().lastError, decisions: S().decisions, version: VERSION,
+    autoHours: userHours(), nextRefresh: nextRefresh(),
   };
 }
 

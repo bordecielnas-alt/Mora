@@ -72,7 +72,8 @@ La première recherche part tout de suite (une à trois minutes). Tu peux te dé
 
 Pas de clé API, pas de facturation à l'usage : les recherches comptent dans les limites d'usage de ton abonnement.
 Les recherches automatiques sont espacées d'au moins 30 minutes. Pour économiser ton quota :
-`MORA_REFRESH_HOURS=12`, `MORA_BATCH=8` ou `MORA_CLAUDE_MODEL=sonnet` dans un fichier `.env` (modèle dans `.env.example`).
+`MORA_REFRESH_HOURS=12`, `MORA_BATCH=8` (valeurs par défaut : chaque compte peut les changer dans
+Réglages › Recherche automatique, de « toutes les heures » à « jamais », et de 4 à 30 contenus par recherche) ou `MORA_CLAUDE_MODEL=sonnet` dans un fichier `.env` (modèle dans `.env.example`).
 
 Ce qui coûte, c'est surtout la recherche web : chaque recherche ajoute environ 15 000 jetons de résultats à lire. Mora limite donc le nombre de recherches web par appel (Réglages › Profondeur de recherche : 6, 12 ou 25), n'ouvre pas les pages (il vérifie les liens lui-même), et remplace la longue consigne système de Claude Code par une consigne courte. La consommation réelle est visible dans l'onglet Stats.
 
@@ -83,10 +84,10 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
 - **Pour toi** : le fil. Les propositions sont classées selon ce que tu as aimé, gardé ou masqué. Touche l'image (ou le titre)
   pour ouvrir le contenu dans un nouvel onglet, double-tape l'image pour l'aimer. « Pas pour moi » le retire du fil ; tu peux dire
   pourquoi (déjà vu, trop long, source bof, sujet hors cible, trop basique), et le feed n'ajuste alors que ce qui compte.
-  « J'ai 5 / 15 / 45 min » ne montre que ce qui tient dans ce temps.
   **Déjà vu** : une carte compte comme vue quand elle sort par le haut de l'écran pendant que tu descends, après être restée
   au moins une seconde à moitié visible (un survol rapide ne compte pas) ; une vidéo lancée compte aussi. Elle ne disparaît
-  pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as aimée ou gardée. L'onglet « Déjà vu »,
+  pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as gardée. Ce que tu as aimé
+  part aussi, et se retrouve dans **Gardés › Aimés** (où les vidéos se lisent aussi). L'onglet « Déjà vu »,
   à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
   Les shorts s'affichent en format vertical. Les vidéos YouTube, Vimeo et TikTok se lisent directement dans l'app :
   elles se lancent toutes seules quand elles arrivent à l'écran et s'arrêtent quand elles en sortent (réglable dans

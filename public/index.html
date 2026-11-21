@@ -35,12 +35,10 @@
   <main>
     <section class="view" id="v-tri">
       <div class="row"><h2>Pour toi</h2><span class="mono" id="count"></span></div>
-      <p class="sub">Fais défiler. Ce que tu as vu ne revient pas (sauf ce que tu as aimé ou gardé). ♥ J’aime pour dire ce qui te plaît, le signet pour garder, « Pas pour moi » pour masquer. Touche une vidéo pour la lire ici, une autre image pour ouvrir le contenu, double-tape pour aimer.</p>
+      <p class="sub">Fais défiler. Ce que tu as vu ne revient pas (sauf ce que tu as gardé ; tes j’aime sont dans Gardés › Aimés). ♥ J’aime pour dire ce qui te plaît, le signet pour garder, « Pas pour moi » pour masquer. Touche une vidéo pour la lire ici, une autre image pour ouvrir le contenu, double-tape pour aimer.</p>
       <div class="seg" id="feedSeg" role="tablist" aria-label="Fil">
         <button role="tab" data-seg="new" aria-selected="true">Nouveautés</button><button role="tab" data-seg="seen" aria-selected="false">Déjà vu</button></div>
       <div id="feedNew">
-        <div class="filters timef" id="timeFilter" aria-label="Temps disponible">
-          <span class="lbl">J’ai</span><button data-min="0">Tout le temps</button><button data-min="5">5 min</button><button data-min="15">15 min</button><button data-min="45">45 min</button></div>
         <div id="banner"></div>
         <div class="stream" id="stream"></div>
         <div class="more" id="more"></div>
@@ -53,12 +51,20 @@
 
     <section class="view" id="v-feed" hidden>
       <div class="row"><h2>Gardés</h2><span class="rowr"><span class="mono" id="feedcount"></span><a class="linkbtn" href="/api/kept/export.md" download title="Tous tes gardés et tes notes, en Markdown (Obsidian, Notion…)">Exporter</a></span></div>
+      <div class="seg" id="keptSeg" role="tablist" aria-label="Gardés ou aimés">
+        <button role="tab" data-k="kept" aria-selected="true">Gardés</button><button role="tab" data-k="liked" aria-selected="false">Aimés</button></div>
+      <div id="keptPane">
       <p class="sub">Ce que tu as gardé. Touche un contenu pour l'affiner.</p>
       <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
         <input id="keptSearch" type="search" placeholder="Rechercher dans mes gardés" autocomplete="off" aria-label="Rechercher dans mes gardés"></div>
       <div class="filters" id="themeFilters" aria-label="Filtrer par centre d’intérêt"></div>
       <div class="filters small-f" id="filters" aria-label="Filtrer par format"></div>
       <div class="feed" id="feed"></div>
+      </div>
+      <div id="likedPane" hidden>
+        <p class="sub">Tout ce que tu as aimé, le plus récent en haut. Les vidéos se lisent ici aussi ; touche ♥ à nouveau pour retirer un j’aime.</p>
+        <div class="stream" id="likedList"></div>
+      </div>
     </section>
 
     <section class="view" id="v-quest" hidden>

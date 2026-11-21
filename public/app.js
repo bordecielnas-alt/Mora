@@ -44,7 +44,7 @@ function toast(m, action) {
 }
 
 const state = { stream: [], status: {}, kept: [], themes: [], weights: { theme: {}, type: {} }, decisions: 0, loading: false, prefs: null, langs: {}, hidden: [],
-  suggestions: [], quests: [], justTossed: null, maxMin: 0, exhausted: false, seen: [], seg: "new" };
+  suggestions: [], quests: [], justTossed: null, maxMin: 0, exhausted: false, seen: [], liked: [], seg: "new", keptSeg: "kept" };
 const SHARE = '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>';
 const REASONS = [["seen", "Déjà vu"], ["long", "Trop long"], ["source", "Source bof"], ["topic", "Sujet hors cible"], ["basic", "Trop basique"]];
 // Durée en minutes (« 8 min », « 12:30 », « 1:02:00 », « 1 h 20 ») ; null si inconnue. Même règle que le serveur.
@@ -58,7 +58,7 @@ function durationMin(d) {
   return null;
 }
 const fits = (p) => !state.maxMin || (durationMin(p.duration) ?? Infinity) <= state.maxMin;
-const findItem = (id) => state.stream.find((x) => x.id === id) || state.seen.find((x) => x.id === id) || state.quests.flatMap((q) => q.items).find((x) => x.id === id);
+const findItem = (id) => state.stream.find((x) => x.id === id) || state.seen.find((x) => x.id === id) || state.liked.find((x) => x.id === id) || state.quests.flatMap((q) => q.items).find((x) => x.id === id);
 
 /* ---------------- Pour toi ---------------- */
 function postHTML(p) {
@@ -135,19 +135,28 @@ function videoOf(url) {
 const autoplayOn = () => state.prefs?.autoplay !== false;
 let playing = null; // .media qui joue
 const ratios = new Map();
+// Visibilité d'une vidéo : la part visible de la vidéo, ou la part de l'écran qu'elle occupe (un short plus haut que l'écran compte comme bien visible).
 const videoObs = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
-  entries.forEach((e) => ratios.set(e.target, e.isIntersecting ? e.intersectionRatio : 0));
-  pickVideo();
-}, { root: $("main"), threshold: [0, 0.3, 0.6, 0.9] }) : null;
+  entries.forEach((e) => ratios.set(e.target, !e.isIntersecting ? 0
+    : Math.max(e.intersectionRatio, e.rootBounds ? e.intersectionRect.height / e.rootBounds.height : 0)));
+  schedulePick();
+}, { root: $("main"), threshold: [0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.6, 0.7, 0.8, 0.9, 1] }) : null;
+// On laisse le défilement se poser avant de lancer ou changer de vidéo : pas de lecteur créé puis détruit au passage.
+let pickTimer = null, stopTimer = null;
+function schedulePick() { clearTimeout(pickTimer); pickTimer = setTimeout(pickVideo, 350); }
 function pickVideo() {
+  clearTimeout(pickTimer);
   let best = null, r = 0.6;
   for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r && el.closest("#stream") && !el.dataset.closed) { best = el; r = v; } }
   const off = !autoplayOn() || $("#v-tri").hidden || state.seg !== "new";
   const cur = playing?.isConnected ? ratios.get(playing) || 0 : 0;
-  // on garde la vidéo en cours tant qu'elle reste un peu visible ; celle lancée à la main ne dépend pas de la lecture auto
-  if (playing && (cur < 0.3 || (off && !playing.classList.contains("sound")))) stopVideo(playing);
-  // la suivante prend le relais dès qu'elle est mieux visible que celle en cours
-  if (!off && best && (!playing || (best !== playing && cur < 0.6))) playVideo(best, soundOn);
+  // la vidéo en cours continue tant qu'il en reste un bout à l'écran ; elle ne s'arrête qu'une fois vraiment sortie (avec un délai)
+  const gone = !playing?.isConnected || cur < 0.08 || (off && !playing.classList.contains("sound") && !playing.closest("#seenList, #questList, #likedList"));
+  if (playing && gone) {
+    if (!stopTimer) { const m = playing; stopTimer = setTimeout(() => { stopTimer = null; if (playing === m && (ratios.get(m) || 0) < 0.08 || (playing === m && off && !m.classList.contains("sound"))) stopVideo(m); pickVideo(); }, cur === 0 ? 400 : 900); }
+  } else { clearTimeout(stopTimer); stopTimer = null; }
+  // une autre vidéo ne prend le relais que si elle est bien à l'écran et que l'actuelle est surtout sortie
+  if (!off && best && best !== playing && (!playing || (cur < 0.35 && r >= 0.7))) playVideo(best, soundOn);
 }
 // Une fois le son activé (par un toucher), les vidéos suivantes du fil démarrent avec le son, comme sur TikTok.
 // Les navigateurs refusent le son avant une interaction, d'où le démarrage en muet tant qu'il n'a pas été activé.
@@ -162,6 +171,9 @@ function playVideo(m, sound = false) {
   f.src = sound ? withSound(m.dataset.embed) : m.dataset.embed; f.className = "embed"; f.title = "Lecture de la vidéo";
   f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen; web-share"; f.allowFullscreen = true;
   f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube refuse de lire sans l'origine de la page
+  // la miniature reste visible tant que le lecteur charge : pas d'écran noir
+  f.addEventListener("load", () => setTimeout(() => f.classList.add("ready"), 250), { once: true });
+  setTimeout(() => f.classList.add("ready"), 4000);
   const ctl = document.createElement("div"); ctl.className = "vctl";
   ctl.innerHTML = (sound ? `<button type="button" data-vmute aria-label="Couper le son" title="Couper le son">${ICON_MUTE}</button>` : `<button type="button" data-vsound>${ICON_SOUND}Activer le son</button>`)
     + (fsOK() ? `<button type="button" data-vfull aria-label="Plein écran" title="Plein écran">${ICON_FULL}</button>` : "")
@@ -170,6 +182,7 @@ function playVideo(m, sound = false) {
   if (videoObs) { ratios.set(m, 1); videoObs.observe(m); }
 }
 function stopVideo(m) {
+  if (playing === m) { clearTimeout(stopTimer); stopTimer = null; }
   if (document.fullscreenElement === m) document.exitFullscreen?.().catch(() => {});
   m.querySelector("iframe.embed")?.remove(); m.querySelector(".vctl")?.remove();
   m.classList.remove("playing", "sound"); if (playing === m) playing = null;
@@ -184,7 +197,7 @@ const ICON_SOUND = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICON_MUTE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>`;
 const ICON_FULL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
-function observeVideos() { if (videoObs) document.querySelectorAll("#stream .media[data-embed], #seenList .media[data-embed], #questList .media[data-embed]").forEach((m) => videoObs.observe(m)); }
+function observeVideos() { if (videoObs) document.querySelectorAll("#stream .media[data-embed], #seenList .media[data-embed], #questList .media[data-embed], #likedList .media[data-embed]").forEach((m) => videoObs.observe(m)); }
 
 // Met à jour le fil sans tout reconstruire : un post inchangé garde son nœud (et sa vidéo en cours),
 // un post modifié garde sa zone vidéo si elle n'a pas changé.
@@ -223,17 +236,13 @@ function renderStream() {
   const shown = state.stream.filter((p) => p.status === "toss" || fits(p));
   patchList($("#stream"), shown);
   observeVideos(); observeSeen();
-  $("#timeFilter").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", Number(b.dataset.min) === state.maxMin));
   const s = state.status;
   const more = $("#more");
-  if (state.maxMin && state.exhausted)
-    more.innerHTML = `<strong>C’est tout pour ${state.maxMin} min</strong><span>${shown.length ? "Rien d’autre ne tient dans ce temps pour l’instant." : "Aucune proposition ne tient dans ce temps pour l’instant."} Les contenus sans durée connue sont cachés avec ce filtre.</span><button class="btn ghost" id="noTime">Tout afficher</button>`;
-  else if (s.pending > 0) more.innerHTML = `<span>Chargement des propositions suivantes…</span>`;
+  if (s.pending > 0) more.innerHTML = `<span>Chargement des propositions suivantes…</span>`;
   else if (s.refreshing) more.innerHTML = `<strong>Recherche en cours</strong><span>L’IA cherche de nouveaux contenus sur le web. Ça prend une à deux minutes.</span>`;
   else if (s.mode === "ia") more.innerHTML = `<strong>Tu es à jour</strong><span>De nouvelles propositions arrivent automatiquement. Tu peux aussi lancer une recherche maintenant.</span><button class="btn" id="refill">Chercher maintenant</button>`;
   else more.innerHTML = `<strong>Tu es à jour</strong><span>Tu as vu tous les contenus d’exemple.</span>`;
   const rf = $("#refill"); if (rf) rf.onclick = startRefresh;
-  const nt = $("#noTime"); if (nt) nt.onclick = () => setMaxMin(0);
   const kept = state.stream.filter((p) => p.status === "keep").length;
   const liked = state.stream.filter((p) => p.liked).length;
   $("#count").textContent = `${liked} j’aime · ${kept} gardés · ${s.pending ?? 0} à venir`;
@@ -263,7 +272,7 @@ async function loadNewest() {
 // « Déjà vu » : une carte est vue quand elle sort entièrement par le haut de l'écran pendant que tu
 // descends, après être restée au moins 1 s à moitié visible (un survol rapide ne compte pas).
 // Une vidéo lancée compte aussi. La carte reste affichée pendant cette visite et quitte le fil au
-// prochain chargement (sauf si elle est aimée ou gardée). Le serveur garde la date pour l'onglet « Déjà vu ».
+// prochain chargement (sauf si elle est gardée). Le serveur garde la date pour l'onglet « Déjà vu ».
 const SEEN_DWELL = 1000;
 const seenSent = new Set(), seenQueue = new Set(), seenTimers = new Map(), dwelt = new Set();
 function markSeen(id) { if (id && !seenSent.has(id)) { seenSent.add(id); seenQueue.add(id); } }
@@ -295,21 +304,14 @@ setInterval(() => flushSeen(), 4000);
 addEventListener("pagehide", () => flushSeen(true));
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSeen(true); });
 
-// « J'ai X minutes » : ne montre que ce qui tient dans ce temps.
-function setMaxMin(v) {
-  state.maxMin = v; state.exhausted = false;
-  try { localStorage.setItem("mora-maxmin", String(v)); } catch {}
-  renderStream(); checkSentinel();
-}
-$("#timeFilter").addEventListener("click", (e) => { const b = e.target.closest("[data-min]"); if (b) setMaxMin(Number(b.dataset.min)); });
-try { state.maxMin = Number(localStorage.getItem("mora-maxmin")) || 0; } catch {}
+try { localStorage.removeItem("mora-maxmin"); } catch {} // ancien filtre « J'ai X min », retiré
 
 function checkSentinel() {
   const m = $("main"), r = $("#more").getBoundingClientRect(), mr = m.getBoundingClientRect();
   if (!$("#v-tri").hidden && state.seg === "new" && r.top < mr.bottom + 300) loadMore();
 }
 
-function renderAllPosts() { renderStream(); renderQuests(); renderSeen(); }
+function renderAllPosts() { renderStream(); renderQuests(); renderSeen(); renderLiked(); }
 
 // Onglet « Déjà vu » (7 derniers jours), à côté des nouveautés.
 async function loadSeen() {
@@ -411,7 +413,7 @@ function onPostsDbl(e) {
   const p = findItem(m.dataset.dbl);
   if (p && !p.liked) setTimeout(() => like(p.id, true), 300);
 }
-for (const el of [$("#stream"), $("#questList"), $("#seenList")]) { el.addEventListener("click", onPostsClick); el.addEventListener("dblclick", onPostsDbl); }
+for (const el of [$("#stream"), $("#questList"), $("#seenList"), $("#likedList")]) { el.addEventListener("click", onPostsClick); el.addEventListener("dblclick", onPostsDbl); }
 $("main").addEventListener("scroll", checkSentinel, { passive: true });
 
 async function startRefresh() {
@@ -450,6 +452,27 @@ function pollStatus() {
 /* ---------------- Gardés ---------------- */
 let filter = "tout", themeFilter = "tout", query = "";
 const norm = (x) => String(x ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// Aimés : à part des gardés. Un j'aime ne retient plus la carte dans le fil, on la retrouve ici.
+async function loadLiked() {
+  try { state.liked = (await api("/liked")).map((i) => state.stream.find((s) => s.id === i.id) || state.seen.find((s) => s.id === i.id) || i); }
+  catch (e) { toast(e.message); }
+  renderLiked();
+}
+function renderLiked() {
+  const box = $("#likedList"); if (!box) return;
+  const items = state.liked.filter((p) => p.liked && p.status !== "removed" && p.status !== "toss");
+  if (state.keptSeg === "liked") $("#feedcount").textContent = `${items.length} aimé${items.length > 1 ? "s" : ""}`;
+  if (!items.length) { box.innerHTML = `<div class="empty-stream">Rien d’aimé pour l’instant. Touche ♥ J’aime (ou double-tape une image) dans le fil.</div>`; return; }
+  patchList(box, items);
+}
+function setKeptSeg(k) {
+  state.keptSeg = k;
+  $("#keptSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.k === k));
+  $("#keptPane").hidden = k !== "kept"; $("#likedPane").hidden = k !== "liked";
+  if (playing && !playing.closest("#stream")) stopVideo(playing);
+  if (k === "liked") loadLiked(); else renderKept();
+}
+$("#keptSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) setKeptSeg(b.dataset.k); });
 async function loadKept() { try { state.kept = await api("/kept"); renderKept(); } catch (e) { toast(e.message); } }
 function renderKept() {
   // Filtres par centre d'intérêt : seulement les thèmes qui ont des gardés.
@@ -469,7 +492,7 @@ function renderKept() {
     (filter === "tout" || (filter === "star" ? f.star : f.type === filter)) &&
     (themeFilter === "tout" || f.theme === themeFilter) &&
     (!words.length || words.every((w) => norm([f.title, f.titleOriginal, f.excerpt, f.note, f.source, f.theme].join(" ")).includes(w))));
-  $("#feedcount").textContent = list.length === state.kept.length ? `${state.kept.length} gardés` : `${list.length} sur ${state.kept.length}`;
+  if (state.keptSeg === "kept") $("#feedcount").textContent = list.length === state.kept.length ? `${state.kept.length} gardés` : `${list.length} sur ${state.kept.length}`;
   $("#feed").innerHTML = list.length
     ? list.map((f) => `<button class="item" data-id="${f.id}">
         <span class="mini" style="background:${grad(f.theme)}">${ICON[f.type] || ICON.lien}</span>
@@ -559,7 +582,7 @@ $("#addForm").addEventListener("submit", async (e) => {
 const LANG_FR = { fr: "Français", en: "Anglais", es: "Espagnol", de: "Allemand", it: "Italien", pt: "Portugais" };
 const MIX = [["article", "Articles"], ["video", "Vidéos"], ["short", "Shorts"], ["podcast", "Podcasts"]];
 async function loadPrefs() {
-  try { const r = await api("/prefs"); state.prefs = r.prefs; state.langs = r.langs; applyLook(); renderPrefs(); } catch {}
+  try { const r = await api("/prefs"); state.prefs = r.prefs; state.langs = r.langs; state.search = r.search; applyLook(); renderPrefs(); } catch {}
 }
 let prefTimer = null, prefPatch = {};
 function savePrefs(patch) {
@@ -568,7 +591,7 @@ function savePrefs(patch) {
   clearTimeout(prefTimer);
   prefTimer = setTimeout(async () => {
     const body = prefPatch; prefPatch = {};
-    try { const r = await api("/prefs", { method: "PATCH", body }); state.prefs = r.prefs; toast("Réglage enregistré"); }
+    try { const r = await api("/prefs", { method: "PATCH", body }); state.prefs = r.prefs; if (r.search) { state.search = r.search; renderAuto(); } toast("Réglage enregistré"); }
     catch (e) { toast(e.message); }
   }, 250);
 }
@@ -601,7 +624,9 @@ function renderPrefs() {
     <div class="pref"><label>Profondeur de recherche</label>
       <p class="small">Le nombre de recherches web à chaque fois. C’est ce qui consomme le plus : plus profond trouve des pépites plus précises, mais use plus vite ton quota Claude. La consommation réelle est dans l’onglet Stats.</p>
       <div class="seg" id="pDepth">${DEPTHS.map(([k, l, d]) => `<button type="button" data-depth="${k}" aria-checked="${(p.depth || "normal") === k}" role="radio" title="${d}">${l}</button>`).join("")}</div>
-      <p class="small" id="depthLbl">${(DEPTHS.find(([k]) => k === (p.depth || "normal")) || DEPTHS[1])[2]}</p></div>`;
+      <p class="small" id="depthLbl">${(DEPTHS.find(([k]) => k === (p.depth || "normal")) || DEPTHS[1])[2]}</p></div>
+    <div class="pref" id="autoPref"></div>`;
+  renderAuto();
   const box = $("#searchPrefs");
   box.querySelector("#pLang").onchange = (e) => { savePrefs({ lang: e.target.value }); renderPrefs(); };
   const nat = box.querySelector("#pNative");
@@ -621,6 +646,23 @@ function renderPrefs() {
   bub.onchange = () => savePrefs({ bubble: Number(bub.value) });
   renderRules();
   renderLook();
+}
+
+/* ---------------- Réglages : recherche automatique (faite par le serveur, même app fermée) ---------------- */
+const hoursLbl = (h) => !h ? "Jamais" : h === 1 ? "1 h" : h === 24 ? "1 jour" : `${h} h`;
+function renderAuto() {
+  const box = $("#autoPref"), q = state.search; if (!box || !q) return;
+  const when = !q.refreshHours ? "Recherche automatique coupée : seulement quand tu touches ↻."
+    : `Le serveur cherche ${q.batch} contenus toutes les ${hoursLbl(q.refreshHours)}, et plus tôt si ta réserve passe sous 8, même si l’app est fermée.`;
+  box.innerHTML = `<label>Recherche automatique</label>
+    <p class="small">Chaque recherche consomme ton quota Claude : plus souvent et plus de contenus, c’est un fil plus frais mais un quota qui part plus vite.</p>
+    <div class="seg" id="pHours" role="radiogroup" aria-label="Fréquence">${q.choices.map((h) => `<button type="button" role="radio" data-h="${h}" aria-checked="${h === q.refreshHours}">${hoursLbl(h)}</button>`).join("")}</div>
+    <div class="mixrow"><span>Contenus par recherche</span><input type="range" id="pBatch" min="4" max="30" step="2" value="${q.batch}" aria-label="Contenus par recherche"><span class="mono" id="batchLbl">${q.batch}</span></div>
+    <p class="small" id="autoLbl">${when}${q.lastRefresh ? ` Dernière recherche ${ago(q.lastRefresh)}.` : ""}</p>`;
+  box.querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => { q.refreshHours = Number(b.dataset.h); savePrefs({ refreshHours: q.refreshHours }); renderAuto(); }));
+  const r = box.querySelector("#pBatch");
+  r.oninput = () => (box.querySelector("#batchLbl").textContent = r.value);
+  r.onchange = () => { q.batch = Number(r.value); savePrefs({ batch: q.batch }); renderAuto(); };
 }
 
 /* ---------------- Réglages : mes règles (mots-clés et sources) ---------------- */
@@ -817,11 +859,13 @@ function showTab(v) {
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.v === v));
   ["tri", "feed", "stats", "themes", "quest"].forEach((k) => ($("#v-" + k).hidden = k !== v));
   $("#questBtn").setAttribute("aria-pressed", v === "quest");
+  if (playing?.closest(".view")?.hidden) stopVideo(playing); // pas de son qui continue dans un onglet caché
   pickVideo();
   $("main").scrollTop = 0;
   if (v === "tri") checkSentinel();
   if (v === "themes") { loadAccount(); loadHidden(); loadMe(); }
   if (v === "stats") loadStats();
+  if (v === "feed" && state.keptSeg === "liked") loadLiked();
   if (v === "quest") { loadQuests(); setTimeout(() => $("#questIn").focus(), 50); }
 }
 document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => showTab(b.dataset.v)));

@@ -31,6 +31,10 @@ const HIDDEN_DAYS = 15; // les contenus masqués restent visibles 15 jours dans 
 const LOW_WATER = Number(process.env.MORA_MIN_PENDING || 8);        // relance une recherche sous ce seuil
 const REFRESH_HOURS = Number(process.env.MORA_REFRESH_HOURS || 6);
 const BATCH = Number(process.env.MORA_BATCH || 12);
+// Réglables par compte (Réglages › Recherche automatique) ; les variables d'environnement donnent la valeur par défaut.
+const REFRESH_CHOICES = [0, 1, 3, 6, 12, 24]; // 0 = pas de recherche automatique
+const userHours = () => { const h = S().prefs?.refreshHours; return REFRESH_CHOICES.includes(h) ? h : REFRESH_HOURS; };
+const userBatch = () => { const n = S().prefs?.batch; return Number.isInteger(n) && n >= 4 && n <= 30 ? n : BATCH; };
 
 // Moteur de recherche : abonnement Claude via Claude Code (par défaut), clé API, ou démo.
 const CLI_VERSION = account.claudeCliVersion();
@@ -107,7 +111,7 @@ async function refresh(reason = "manuel") {
   return (u.refreshing = (async () => {
     log(`Recherche de nouveaux contenus (${reason})…`);
     try {
-      const { items: found, suggestions, usage } = BACKEND === "claude-code" ? await discoverWithCli(S(), { count: BATCH }) : await discover(S(), { count: BATCH });
+      const { items: found, suggestions, usage } = BACKEND === "claude-code" ? await discoverWithCli(S(), { count: userBatch() }) : await discover(S(), { count: userBatch() });
       const added = await addFound(found);
       addSuggestions(suggestions);
       recordUsage(S(), usage, { kind: "fil", label: reason, added, backend: BACKEND });
@@ -225,8 +229,10 @@ function translateOld() {
 const pending = () => S().items.filter((i) => i.status === "new").length;
 function maybeRefresh(reason, force = false) {
   if (!aiReady() || U().refreshing) return;
-  if (!force && Date.now() - U().lastAttempt < 30 * 60e3) return;
-  const stale = !S().lastRefresh || Date.now() - Date.parse(S().lastRefresh) > REFRESH_HOURS * 3600e3;
+  const hours = userHours();
+  if (!hours && !force) return; // recherche automatique désactivée : seulement le bouton ↻
+  if (!force && Date.now() - U().lastAttempt < Math.min(30, hours * 30) * 60e3) return;
+  const stale = !S().lastRefresh || Date.now() - Date.parse(S().lastRefresh) > hours * 3600e3;
   if (pending() < LOW_WATER || stale) refresh(reason);
 }
 
@@ -242,8 +248,8 @@ function nextPage(n = PAGE, maxMin = 0) {
   return fresh;
 }
 // Déjà vu (signalé par le client lors d'une visite précédente) : quitte le fil au chargement suivant,
-// sauf ce que tu as gardé ou aimé, qui reste toujours.
-const stays = (i) => !i.seenAt || i.liked || i.status === "keep";
+// sauf ce que tu as gardé, qui reste toujours. Les j'aime partent comme le reste et se retrouvent dans Gardés › Aimés.
+const stays = (i) => !i.seenAt || i.status === "keep";
 function streamView() {
   const since = Date.now() - 3 * 86400e3;
   return S().items
@@ -349,7 +355,7 @@ const routes = [
 
   ["GET", /^\/api\/kept\/export\.md$/, () => ({ [RAW]: true, type: "text/markdown; charset=utf-8", filename: `mora-gardes-${new Date().toISOString().slice(0, 10)}.md`, body: keptMarkdown() })],
 
-  ["GET", /^\/api\/prefs$/, () => ({ prefs: S().prefs, langs: LANGS })],
+  ["GET", /^\/api\/prefs$/, () => ({ prefs: S().prefs, langs: LANGS, search: { refreshHours: userHours(), batch: userBatch(), choices: REFRESH_CHOICES, lastRefresh: S().lastRefresh } })],
   ["PATCH", /^\/api\/prefs$/, (m, body) => {
     const p = S().prefs;
     const pct = (v) => Math.max(0, Math.min(100, Math.round(Number(v))));
@@ -365,10 +371,12 @@ const routes = [
       if (Array.isArray(body[k])) p[k] = [...new Set(body[k].map((x) => String(x).trim().slice(0, 60)).filter(Boolean))].slice(0, 50);
     if (["eco", "normal", "deep"].includes(body.depth)) p.depth = body.depth;
     if (typeof body.autoplay === "boolean") p.autoplay = body.autoplay;
+    if (REFRESH_CHOICES.includes(Number(body.refreshHours)) && body.refreshHours !== null) p.refreshHours = Number(body.refreshHours);
+    if (Number.isInteger(Number(body.batch)) && body.batch !== null) p.batch = Math.max(4, Math.min(30, Number(body.batch)));
     if (["auto", "light", "dark"].includes(body.mode)) p.mode = body.mode;
     if (typeof body.palette === "string" && /^[a-z-]{1,20}$/.test(body.palette)) p.palette = body.palette;
     U().store.save();
-    return { prefs: p };
+    return { prefs: p, search: { refreshHours: userHours(), batch: userBatch(), choices: REFRESH_CHOICES, lastRefresh: S().lastRefresh } };
   }],
 
   ["GET", /^\/api\/stats$/, () => stats()],
@@ -393,6 +401,7 @@ const routes = [
   ["POST", /^\/api\/account\/logout$/, () => ({ ...account.logout(), login: account.loginState() })],
   ["POST", /^\/api\/account\/connected$/, () => { const st = account.accountStatus(true); if (st.loggedIn) { removeUnseenDemo(); maybeRefresh("compte connecté", true); translateOld(); } return { ...st, ...status() }; }],
 
+  ["GET", /^\/api\/liked$/, () => S().items.filter((i) => i.liked && i.status !== "toss" && i.status !== "removed").sort((a, b) => (b.likedAt || "").localeCompare(a.likedAt || "")).map(pub)],
   ["GET", /^\/api\/kept$/, () => S().items.filter((i) => i.status === "keep").sort((a, b) => (b.decidedAt || "").localeCompare(a.decidedAt || "")).map(pub)],
   ["PATCH", /^\/api\/items\/([\w-]+)$/, (m, body) => {
     const it = mustGet(m[1]);

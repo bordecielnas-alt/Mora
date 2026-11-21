@@ -334,3 +334,6 @@ h2.h3{margin-top:22px;font-size:17px}
   .stream>.post,.stream>.hiddenpost{margin-left:calc(-1 * max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));border-radius:0}
   .media.vertical{border-radius:0;width:min(100%,calc(80vh * 9 / 16))}
 }
+/* lecteur : invisible tant qu'il charge, la miniature reste à l'écran */
+.media iframe.embed{opacity:0;transition:opacity .3s;background:transparent}
+.media iframe.embed.ready{opacity:1;background:#000}

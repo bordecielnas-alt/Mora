@@ -18,6 +18,7 @@ const { translateTitles } = await import("./lib/translate.js");
 const { discover, checkPage, hasCredentials, MODEL, LANGS } = await import("./lib/discover.js");
 const { demoItems, DEMO_THEMES } = await import("./lib/demo.js");
 const { discoverWithCli } = await import("./lib/discover-cli.js");
+const { recordUsage, usageSummary } = await import("./lib/usage.js");
 const account = await import("./lib/account.js");
 const { als, current } = await import("./lib/context.js");
 const { Auth } = await import("./lib/auth.js");
@@ -106,13 +107,15 @@ async function refresh(reason = "manuel") {
   return (u.refreshing = (async () => {
     log(`Recherche de nouveaux contenus (${reason})…`);
     try {
-      const { items: found, suggestions } = BACKEND === "claude-code" ? await discoverWithCli(S(), { count: BATCH }) : await discover(S(), { count: BATCH });
+      const { items: found, suggestions, usage } = BACKEND === "claude-code" ? await discoverWithCli(S(), { count: BATCH }) : await discover(S(), { count: BATCH });
       const added = await addFound(found);
       addSuggestions(suggestions);
+      recordUsage(S(), usage, { kind: "fil", label: reason, added, backend: BACKEND });
       log(`${added} nouvelles propositions ajoutées.`);
       S().lastRefresh = new Date().toISOString();
       S().lastError = null;
     } catch (e) {
+      recordUsage(S(), e?.usage, { kind: "fil", label: `${reason} (échec)`, added: 0, backend: BACKEND });
       S().lastError = { at: new Date().toISOString(), message: String(e?.message || e) };
       logErr("Échec de la recherche :", e?.message || e);
     } finally {
@@ -163,10 +166,13 @@ async function runQuest(quest) {
   log(`Recherche ponctuelle : ${quest.q}`);
   try {
     const opts = { count: 6, quest: { q: quest.q, label: quest.label } };
-    const { items } = BACKEND === "claude-code" ? await discoverWithCli(S(), opts) : await discover(S(), opts);
+    const { items, usage } = BACKEND === "claude-code" ? await discoverWithCli(S(), opts) : await discover(S(), opts);
     quest.found = await addFound(items, { quest: quest.id });
+    const e = recordUsage(S(), usage, { kind: "ponctuelle", label: quest.q, added: quest.found, backend: BACKEND });
+    if (e) quest.tokens = e.tokens;
     quest.status = "done";
   } catch (e) {
+    recordUsage(S(), e?.usage, { kind: "ponctuelle", label: `${quest.q} (échec)`, added: 0, backend: BACKEND });
     quest.status = "error"; quest.error = String(e?.message || e);
     logErr("Échec de la recherche ponctuelle :", quest.error);
   } finally {
@@ -204,7 +210,8 @@ function translateOld() {
   u.translating = (async () => {
     log("Traduction en français des titres déjà enregistrés…");
     try {
-      const n = await translateTitles(S().items, BACKEND);
+      const st = S();
+      const n = await translateTitles(st.items, BACKEND, (usage) => recordUsage(st, usage, { kind: "traduction", label: "titres", backend: BACKEND }));
       log(`${n} titres traduits.`);
     } catch (e) {
       logErr("Échec de la traduction des titres :", e?.message || e);
@@ -364,6 +371,7 @@ const routes = [
   }],
 
   ["GET", /^\/api\/stats$/, () => stats()],
+  ["GET", /^\/api\/usage$/, () => ({ ...usageSummary(S()), backend: BACKEND, model: BACKEND_LABEL })],
 
   ["POST", /^\/api\/items\/([\w-]+)\/like$/, (m, body) => {
     const it = mustGet(m[1]);
@@ -522,7 +530,11 @@ async function authApi(req, res, pathname, body) {
   if (R("POST", /^\/api\/auth\/totp\/recovery$/)) return reply(res, auth.newRecovery(req, s, body));
   // Gestion des comptes : administrateurs seulement.
   if (!s.user.admin) return send(res, 403, { error: "Réservé aux administrateurs." });
-  if (R("GET", /^\/api\/users$/)) return send(res, 200, auth.list());
+  if (R("GET", /^\/api\/users$/)) return send(res, 200, auth.list().map((x) => {
+    const u = auth.users.find((y) => y.id === x.id);
+    const m = u ? usageSummary(userCtx(u).store.state).month : null; // consommation des 30 derniers jours, pour l'admin
+    return m ? { ...x, usage30: { tokens: m.tokens, cost: m.cost, calls: m.calls } } : x;
+  }));
   if (R("POST", /^\/api\/users$/)) return reply(res, auth.create(body));
   let m;
   if (req.method === "PATCH" && (m = pathname.match(/^\/api\/users\/([\w-]+)$/))) return reply(res, auth.update(s, m[1], body));

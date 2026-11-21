@@ -294,3 +294,19 @@ h2.h3{margin-top:22px;font-size:17px}
 /* --- Shorts : vidéo courte verticale --- */
 .media.vertical{aspect-ratio:9/16;width:min(100%,calc(70vh * 9 / 16),300px);margin:0 auto;border-radius:12px;overflow:hidden}
 .post .media.vertical{margin-block:2px 4px}
+
+/* --- v0.11 : consommation de jetons (onglet Stats) --- */
+#usage .tile .mono{font-size:11.5px}
+.ubars{display:grid;grid-template-columns:repeat(30,1fr);gap:2px;height:96px;align-items:end}
+.ubars span{height:100%;display:flex;align-items:flex-end;background:var(--sunk);border-radius:3px}
+.ubars i{display:block;width:100%;background:var(--accent);border-radius:3px}
+.ukind{display:flex;flex-direction:column;gap:2px;padding:6px 0}
+.ukind + .ukind{border-top:1px solid var(--line)}
+.ulist{display:flex;flex-direction:column}
+.urow{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:8px 0}
+.urow + .urow{border-top:1px solid var(--line)}
+.urow .what{display:flex;flex-direction:column;min-width:0}
+.urow .what .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.urow .num{display:flex;flex-direction:column;align-items:flex-end;font-size:13px;white-space:nowrap}
+.urow .num .small{font-size:11.5px;color:var(--muted)}
+@media (max-width:420px){#usage .tiles{grid-template-columns:repeat(2,1fr)}}

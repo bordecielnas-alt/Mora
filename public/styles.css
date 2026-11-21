@@ -319,3 +319,18 @@ h2.h3{margin-top:22px;font-size:17px}
 .media:fullscreen{aspect-ratio:auto;width:100vw;height:100vh;max-width:none;border-radius:0;background:#000!important;padding:0}
 .media:fullscreen .vctl{top:14px;right:14px}
 .media:-webkit-full-screen{width:100vw;height:100vh;max-width:none;border-radius:0;background:#000!important}
+
+/* --- Plus de largeur pour le contenu : cartes plus sobres, bord à bord sur mobile --- */
+.post .ph{padding:10px 12px}
+.post .pb{padding:10px 12px 2px}
+.acts{padding:4px 6px 6px;margin-top:8px}
+.media.vertical{width:min(100%,calc(78vh * 9 / 16))}
+.post .media.vertical{margin-block:0}
+@media (max-width:500px){
+  .stream{gap:8px}
+  /* le défilement couvre toute la largeur de l'écran, sinon les cartes bord à bord dépasseraient */
+  main{margin-left:calc(-1 * max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow-x:hidden}
+  .stream>.post,.stream>.hiddenpost{margin-left:calc(-1 * max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));border-radius:0}
+  .media.vertical{border-radius:0;width:min(100%,calc(80vh * 9 / 16))}
+}

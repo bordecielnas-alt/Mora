@@ -609,7 +609,7 @@ function renderQuests() {
   $("#questForm button").disabled = running;
   box.innerHTML = state.quests.length ? state.quests.map((q) => {
     const items = q.items.filter((i) => i.status !== "toss" || i.id === state.justTossed);
-    const head = `<div class="qhead"><div><b>${esc(q.q)}</b><span class="small"> · ${new Date(q.at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span></div>
+    const head = `<div class="qhead"><div><b>${esc(q.q)}</b><span class="small"> · ${new Date(q.at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}${q.tokens ? ` · ${fmtTok(q.tokens)} jetons` : ""}</span></div>
       ${q.status === "running" ? "" : `<button class="linkbtn" data-delq="${q.id}" aria-label="Effacer cette recherche">Effacer</button>`}</div>`;
     const body = q.status === "running" ? `<div class="waitbox"><span class="spinner"></span>L’IA cherche sur le web, une à trois minutes…</div>`
       : q.status === "error" ? `<div class="banner err">La recherche a échoué : ${esc(q.error)}</div>`
@@ -680,7 +680,51 @@ function renderHidden() {
 }
 
 /* ---------------- Stats ---------------- */
-async function loadStats() { try { renderStats(await api("/stats")); } catch (e) { $("#stats").innerHTML = `<p class="small">${esc(e.message)}</p>`; } }
+async function loadStats() {
+  try { renderStats(await api("/stats")); } catch (e) { $("#stats").innerHTML = `<p class="small">${esc(e.message)}</p>`; }
+  try { renderUsage(await api("/usage")); } catch (e) { $("#usage").innerHTML = `<p class="small">${esc(e.message)}</p>`; }
+}
+
+/* ---------------- Stats : consommation de l'IA ---------------- */
+// Jetons : « 850 », « 12,4 k », « 1,3 M ».
+function fmtTok(n) {
+  n = n || 0;
+  const f = (v, d) => v.toLocaleString("fr-FR", { maximumFractionDigits: d });
+  return n < 1000 ? f(n, 0) : n < 1e6 ? `${f(n / 1e3, n < 1e4 ? 1 : 0)} k` : `${f(n / 1e6, 1)} M`;
+}
+const fmtCost = (c) => (c || 0) < 0.01 ? (c ? "< 0,01 $" : "0 $") : `${(c).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+const KIND_LABEL = { fil: "Fil", ponctuelle: "Recherche ponctuelle", traduction: "Traduction des titres" };
+function renderUsage(u) {
+  const box = $("#usage"); if (!box) return;
+  const sub = u.backend === "claude-code"
+    ? "Jetons consommés par l’IA pour chercher tes contenus. Avec Claude Code, c’est compté dans les limites de ton abonnement Claude : le coût en dollars est l’équivalent au tarif de l’API, à titre indicatif."
+    : u.backend === "api" ? "Jetons consommés par l’IA pour chercher tes contenus. Coût estimé au tarif public de l’API (recherches web comprises)."
+    : "En mode démo, aucune recherche n’appelle Claude.";
+  if (!u.all.calls) { box.innerHTML = `<p class="small">${sub}</p><p class="small">Pas encore de recherche enregistrée. La consommation s’affichera ici après la prochaine.</p>`; return; }
+  const tile = (label, s) => `<div class="tile"><b>${fmtTok(s.tokens)}</b><span>${label}</span><span class="mono">${fmtCost(s.cost)}</span></div>`;
+  const tiles = `<div class="tiles">${tile("Aujourd’hui", u.today)}${tile("7 jours", u.week)}${tile("30 jours", u.month)}${tile("Depuis le début", u.all)}</div>`;
+  // Une barre par jour, 30 jours.
+  const max = Math.max(1, ...u.days.map((d) => d.tokens));
+  const chart = `<div class="ubars">${u.days.map((d) => {
+      const kinds = Object.entries(d.byKind).map(([k, v]) => `${KIND_LABEL[k] || k} ${fmtTok(v)}`).join(", ");
+      const date = new Date(d.day + "T12:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+      return `<span title="${esc(date)} : ${d.tokens ? `${fmtTok(d.tokens)} jetons, ${d.calls} appel${d.calls > 1 ? "s" : ""} (${esc(kinds)}), ${fmtCost(d.cost)}` : "rien"}"><i style="height:${d.tokens ? Math.max(4, (d.tokens / max) * 100) : 0}%"></i></span>`;
+    }).join("")}</div><div class="ends small"><span>il y a 30 jours</span><span>max ${fmtTok(max)} / jour</span><span>aujourd’hui</span></div>`;
+  // Par type d'appel, sur 30 jours : moyenne par recherche et par contenu ajouté.
+  const kinds = Object.entries(u.byKind).map(([k, b]) => `<div class="ukind"><b>${esc(KIND_LABEL[k] || k)}</b>
+      <span class="small">${b.calls} appel${b.calls > 1 ? "s" : ""} · ${fmtTok(b.tokens / b.calls)} jetons en moyenne${b.added ? ` · ${fmtTok(b.tokens / b.added)} par contenu ajouté` : ""} · ${fmtCost(b.cost)}</span></div>`).join("");
+  const M = u.month;
+  const split = M.tokens ? `<p class="small">Sur 30 jours : ${fmtTok(M.input)} en entrée, ${fmtTok(M.cacheRead + M.cacheWrite)} via le cache, ${fmtTok(M.output)} en sortie, ${M.searches} recherches web.</p>` : "";
+  const rows = u.recent.map((e) => `<div class="urow">
+      <span class="when small">${new Date(e.at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}<br>${new Date(e.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+      <span class="what"><b>${esc(KIND_LABEL[e.kind] || e.kind)}</b><span class="small">${esc(e.label)}</span><span class="small">${[e.searches && `${e.searches} rech. web`, e.added != null && `${e.added} ajouté${e.added > 1 ? "s" : ""}`, e.ms && `${Math.round(e.ms / 1000)} s`].filter(Boolean).join(" · ")}</span></span>
+      <span class="num mono" title="Entrée ${fmtTok(e.input)} · cache ${fmtTok(e.cacheRead + e.cacheWrite)} · sortie ${fmtTok(e.output)}${e.model ? " · " + esc(e.model) : ""}">${fmtTok(e.tokens)}<span class="small">${fmtCost(e.cost)}</span></span>
+    </div>`).join("");
+  box.innerHTML = `<p class="small">${sub}</p>${tiles}
+    <div class="block">${chart}</div>
+    <div class="block">${kinds}${split}</div>
+    <h2 class="h3">Derniers appels</h2><div class="block ulist">${rows}</div>`;
+}
 function renderStats(st) {
   const T = st.totals;
   $("#statsCount").textContent = `${T.decisions} choix`;
@@ -901,7 +945,7 @@ async function loadUsers() {
 function renderUsers() {
   const box = $("#usersBlock");
   box.innerHTML = `<div class="users">${users.map((u) => `<div class="user">
-      <span class="who"><b>${esc(u.username)}</b><span class="small">${u.admin ? "administrateur · " : ""}${u.totp ? "double auth. · " : ""}créé le ${new Date(u.createdAt).toLocaleDateString("fr-FR")}</span></span>
+      <span class="who"><b>${esc(u.username)}</b><span class="small">${u.admin ? "administrateur · " : ""}${u.totp ? "double auth. · " : ""}créé le ${new Date(u.createdAt).toLocaleDateString("fr-FR")}${u.usage30?.calls ? ` · ${fmtTok(u.usage30.tokens)} jetons sur 30 j (${fmtCost(u.usage30.cost)})` : ""}</span></span>
       <span class="uacts"><button class="btn ghost" data-pw="${esc(u.id)}" type="button">Mot de passe</button><button class="btn ghost" data-mail="${esc(u.id)}" type="button">Adresse</button>${u.totp && u.id !== me.user.id ? `<button class="btn ghost" data-totp="${esc(u.id)}" type="button">Retirer 2FA</button>` : ""}${u.id === me.user.id ? "" : `<button class="btn ghost" data-adm="${esc(u.id)}" type="button">${u.admin ? "Retirer admin" : "Admin"}</button><button class="btn danger" data-del="${esc(u.id)}" type="button">Supprimer</button>`}</span>
     </div>`).join("")}</div>
     <form class="userform" id="userAdd">

@@ -92,7 +92,7 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
 - **Recherche ponctuelle** (loupe en haut) : « trouve-moi les JO d'hiver cette semaine ». Les résultats arrivent dans un mini-fil à part, sans créer de thème.
   Quand la réserve baisse, ou toutes les 6 heures, l'app relance une recherche. Le bouton ↻ en lance une tout de suite (une à deux minutes).
 - **Gardés** : ce que tu as gardé. Recherche par mot, filtres par centre d'intérêt et par format. « Exporter » télécharge tous tes gardés et tes notes en Markdown (Obsidian, Notion…). Touche un contenu pour ajouter une note, changer son thème, le mettre en favori ou le retirer.
-- **Stats** : tes centres d'intérêt tels que le feed les a compris, une heatmap thème × format, ton activité sur 12 semaines et les formats appris.
+- **Stats** : tes centres d'intérêt tels que le feed les a compris, une heatmap thème × format, ton activité sur 12 semaines et les formats appris. En bas, la **consommation de l'IA** : jetons utilisés aujourd'hui, sur 7 et 30 jours, une barre par jour, la moyenne par recherche et par contenu ajouté, et le détail des derniers appels (avec le coût équivalent au tarif de l'API, indicatif si tu passes par ton abonnement). L'administrateur voit aussi la consommation de chaque compte sur 30 jours dans Réglages › Comptes.
 - **Réglages** :
   - ton compte Claude et tes thèmes, avec les thèmes que Mora te suggère d'après tes gardés ;
   - **Mes règles** : mots-clés interdits, sources bloquées, sources épinglées (suivies en priorité) ;
@@ -131,6 +131,7 @@ lib/discover-cli.js recherche via Claude Code (abonnement)
 lib/discover.js    recherche via clé API (option) + image d'aperçu des pages
 lib/demo.js        contenus d'exemple du mode démo
 lib/translate.js   traduction en français des anciens titres
+lib/usage.js       consommation de jetons de chaque appel à Claude (onglet Stats)
 public/            interface (PWA : manifest + service worker, login.html)
 Dockerfile         image Docker (+ docker/entrypoint.sh)
 unraid/mora.xml    modèle de conteneur Unraid

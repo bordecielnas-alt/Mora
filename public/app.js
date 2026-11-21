@@ -506,10 +506,11 @@ function renderThemes() {
     state.themes = r.themes; state.weights = r.weights; renderThemes(); refreshStatus(); toast("Thème retiré");
   }));
   const s = state.status;
-  $("#statusLine").textContent = s.mode === "ia"
+  checkVersion(s.version);
+  $("#statusLine").textContent = (s.version ? `Mora ${s.version}. ` : "") + (s.mode === "ia"
     ? `Recherche via ${s.model}. Dernière recherche : ${s.lastRefresh ? new Date(s.lastRefresh).toLocaleString("fr-FR") : "jamais"}. ${s.pending} propositions en réserve.`
     : s.needsLogin ? "Contenus d’exemple tant que ton compte Claude n’est pas connecté (en haut de cette page)."
-    : "Mode démo : Claude Code est introuvable. Lance npm install dans le dossier de l’app.";
+    : "Mode démo : Claude Code est introuvable. Lance npm install dans le dossier de l’app.");
 }
 $("#addForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1015,4 +1016,18 @@ function renderUsers() {
   }
 })();
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((r) => r.update()).catch(() => {});
+
+// Filet de sécurité : si le serveur a une version plus récente que cette page (cache d'un navigateur,
+// de l'app installée ou d'un reverse proxy), on vide les caches et on recharge une fois.
+const PAGE_VERSION = document.querySelector('meta[name="mora-version"]')?.content;
+async function checkVersion(serverVersion) {
+  if (!serverVersion || !PAGE_VERSION || serverVersion === PAGE_VERSION) return;
+  const key = "mora-reloaded-for";
+  try { if (sessionStorage.getItem(key) === serverVersion) return; sessionStorage.setItem(key, serverVersion); } catch {}
+  try {
+    for (const r of (await navigator.serviceWorker?.getRegistrations()) || []) await r.unregister();
+    for (const k of (await caches?.keys()) || []) await caches.delete(k);
+  } catch {}
+  location.reload();
+}

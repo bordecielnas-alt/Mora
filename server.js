@@ -260,7 +260,7 @@ function seenView() {
 function status() {
   return {
     mode: aiReady() ? "ia" : "demo", backend: BACKEND, needsLogin: BACKEND === "claude-code" && !account.accountStatus().loggedIn, model: BACKEND_LABEL, refreshing: !!U().refreshing, translating: !!U().translating, questing: !!U().questing, pending: pending(),
-    lastRefresh: S().lastRefresh, lastError: S().lastError, decisions: S().decisions,
+    lastRefresh: S().lastRefresh, lastError: S().lastError, decisions: S().decisions, version: VERSION,
   };
 }
 
@@ -488,6 +488,10 @@ function mustGet(id) { const it = U().store.get(id); if (!it) throw httpErr(404,
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };
 const PUBLIC = path.join(here, "public");
+// Version de l'app : ajoutée aux adresses des fichiers de l'interface (app.js?v=…) et au nom du cache du
+// service worker, pour qu'aucun cache (navigateur, PWA, reverse proxy) ne serve une ancienne interface.
+const VERSION = JSON.parse(fs.readFileSync(path.join(here, "package.json"), "utf8")).version;
+const VERSIONED = new Set([".html", ".webmanifest"]);
 function serveStatic(req, res, pathname) {
   let p; try { p = decodeURIComponent(pathname); } catch { return send(res, 400, { error: "Adresse invalide" }); }
   if (p === "/") p = "/index.html";
@@ -496,7 +500,11 @@ function serveStatic(req, res, pathname) {
   if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, { error: "Interdit" });
   fs.readFile(file, (err, buf) => {
     if (err) return send(res, 404, { error: "Introuvable" });
-    res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache" });
+    const ext = path.extname(file);
+    // Pages et service worker : jamais gardés en cache, et la version y est inscrite.
+    const live = VERSIONED.has(ext) || p === "/sw.js";
+    if (live) buf = Buffer.from(buf.toString("utf8").replaceAll("__MORA_VERSION__", VERSION));
+    res.writeHead(200, { "content-type": MIME[ext] || "application/octet-stream", "cache-control": live ? "no-store" : "no-cache" });
     res.end(buf);
   });
 }
@@ -562,7 +570,7 @@ const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   try {
     const { pathname } = new URL(req.url, "http://x");
-    if (pathname === "/api/health") return send(res, 200, { ok: true });
+    if (pathname === "/api/health") return send(res, 200, { ok: true, version: VERSION });
     const s = auth.enabled ? auth.session(req) : null;
 
     if (!pathname.startsWith("/api/")) {

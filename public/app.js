@@ -538,6 +538,11 @@ function savePrefs(patch) {
     catch (e) { toast(e.message); }
   }, 250);
 }
+const DEPTHS = [
+  ["eco", "Économe", "6 recherches web : environ 2 fois moins de jetons qu’Équilibrée, contenus un peu plus génériques."],
+  ["normal", "Équilibrée", "12 recherches web : le bon compromis."],
+  ["deep", "Approfondie", "25 recherches web : la plus fouillée, la plus gourmande."],
+];
 function renderPrefs() {
   const p = state.prefs; if (!p) return;
   const langs = Object.keys(state.langs || LANG_FR);
@@ -558,7 +563,11 @@ function renderPrefs() {
     <div class="pref"><label for="pBubble">Sortir de ma bulle</label>
       <p class="small">Une part de contenus choisis hors de tes thèmes, pour découvrir autre chose. Ils apparaissent avec le thème «&nbsp;Hors bulle&nbsp;».</p>
       <input type="range" id="pBubble" min="0" max="50" step="5" value="${p.bubble}">
-      <div class="ends"><span id="bubbleLbl" class="mono">${bubbleLbl()}</span></div></div>`;
+      <div class="ends"><span id="bubbleLbl" class="mono">${bubbleLbl()}</span></div></div>
+    <div class="pref"><label>Profondeur de recherche</label>
+      <p class="small">Le nombre de recherches web à chaque fois. C’est ce qui consomme le plus : plus profond trouve des pépites plus précises, mais use plus vite ton quota Claude. La consommation réelle est dans l’onglet Stats.</p>
+      <div class="seg" id="pDepth">${DEPTHS.map(([k, l, d]) => `<button type="button" data-depth="${k}" aria-checked="${(p.depth || "normal") === k}" role="radio" title="${d}">${l}</button>`).join("")}</div>
+      <p class="small" id="depthLbl">${(DEPTHS.find(([k]) => k === (p.depth || "normal")) || DEPTHS[1])[2]}</p></div>`;
   const box = $("#searchPrefs");
   box.querySelector("#pLang").onchange = (e) => { savePrefs({ lang: e.target.value }); renderPrefs(); };
   const nat = box.querySelector("#pNative");
@@ -572,6 +581,7 @@ function renderPrefs() {
     };
     r.onchange = () => savePrefs({ mix: { ...p.mix } });
   });
+  box.querySelectorAll("[data-depth]").forEach((b) => (b.onclick = () => { savePrefs({ depth: b.dataset.depth }); p.depth = b.dataset.depth; renderPrefs(); }));
   const bub = box.querySelector("#pBubble");
   bub.oninput = () => { p.bubble = Number(bub.value); box.querySelector("#bubbleLbl").textContent = bubbleLbl(); };
   bub.onchange = () => savePrefs({ bubble: Number(bub.value) });

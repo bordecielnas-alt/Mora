@@ -363,6 +363,7 @@ const routes = [
     }
     for (const k of ["blockedWords", "blockedSources", "pinnedSources"])
       if (Array.isArray(body[k])) p[k] = [...new Set(body[k].map((x) => String(x).trim().slice(0, 60)).filter(Boolean))].slice(0, 50);
+    if (["eco", "normal", "deep"].includes(body.depth)) p.depth = body.depth;
     if (typeof body.autoplay === "boolean") p.autoplay = body.autoplay;
     if (["auto", "light", "dark"].includes(body.mode)) p.mode = body.mode;
     if (typeof body.palette === "string" && /^[a-z-]{1,20}$/.test(body.palette)) p.palette = body.palette;

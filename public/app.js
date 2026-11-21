@@ -771,8 +771,9 @@ function renderMe() {
   const box = $("#meBlock");
   if (!me?.enabled || !me.user) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = `<div class="state"><span class="dot ok"></span>Connecté·e en tant que <b>${esc(me.user.username)}</b>${me.user.admin ? ` <span class="tag">admin</span>` : ""}</div>
-    <div class="row2"><button class="btn ghost" id="meLogout" type="button">Se déconnecter</button><button class="btn ghost" id="mePwBtn" type="button">Changer le mot de passe</button></div>
+  const u = me.user;
+  box.innerHTML = `<div class="state"><span class="dot ok"></span><span>Connecté·e : <b>${esc(u.username)}</b>${u.admin ? ` <span class="tag">admin</span>` : ""}</span></div>
+    <div class="row2"><button class="btn ghost" id="meLogout" type="button">Se déconnecter</button><button class="btn ghost" data-open="mePw" type="button">Mot de passe</button><button class="btn ghost" data-open="meMail" type="button">Adresse mail</button></div>
     <form class="pwform" id="mePw" hidden>
       <input name="current" type="password" autocomplete="current-password" placeholder="Mot de passe actuel" required>
       <input name="password" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (10 caractères min.)" required minlength="10">
@@ -780,18 +781,76 @@ function renderMe() {
       <div class="row2"><button class="btn" type="submit">Enregistrer</button></div>
       <p class="small">Tes autres appareils seront déconnectés.</p>
     </form>
+    <form class="pwform" id="meMail" hidden>
+      <input name="email" type="email" autocomplete="email" placeholder="Nouvelle adresse mail" required>
+      <input name="current" type="password" autocomplete="current-password" placeholder="Mot de passe actuel" required>
+      <div class="row2"><button class="btn" type="submit">Changer d’adresse</button></div>
+      <p class="small">C’est l’adresse avec laquelle tu te connectes. Aucun mail n’est envoyé.</p>
+    </form>
+    <div class="twofa">
+      <div class="state"><span class="dot ${u.totp ? "ok" : ""}"></span>Double authentification ${u.totp ? "activée" : "désactivée"}</div>
+      ${u.totp
+        ? `<p class="small">À chaque connexion, Mora demande le code de ton application d’authentification. Codes de secours restants : ${me.recoveryLeft ?? 0}.</p>
+           <div class="row2"><button class="btn ghost" data-open="meRec" type="button">Nouveaux codes de secours</button><button class="btn ghost" data-open="meOff" type="button">Désactiver</button></div>
+           <form class="pwform" id="meRec" hidden><input name="password" type="password" autocomplete="current-password" placeholder="Ton mot de passe" required><div class="row2"><button class="btn" type="submit">Générer</button></div><p class="small">Les anciens codes ne marcheront plus.</p></form>
+           <form class="pwform" id="meOff" hidden><input name="password" type="password" autocomplete="current-password" placeholder="Ton mot de passe" required><div class="row2"><button class="btn danger" type="submit">Désactiver la double authentification</button></div></form>`
+        : `<p class="small">Protège ton compte avec une application comme Google Authenticator, Microsoft Authenticator, Aegis ou 1Password : en plus du mot de passe, il faudra le code à 6 chiffres affiché sur ton téléphone.</p>
+           <div class="row2"><button class="btn" id="meTotpStart" type="button">Activer</button></div>`}
+      <div id="meTotp"></div>
+    </div>
     ${me.sessions > 1 ? `<p class="small">Connecté·e sur ${me.sessions} appareils. <button class="linkbtn" id="meLogoutAll" type="button">Déconnecter partout</button></p>` : ""}`;
   const logout = async (everywhere) => { try { await api("/auth/logout", { method: "POST", body: { everywhere } }); } catch {} location.replace("/login"); };
-  box.querySelector("#meLogout").onclick = () => logout(false);
-  const all = box.querySelector("#meLogoutAll"); if (all) all.onclick = () => logout(true);
-  box.querySelector("#mePwBtn").onclick = () => { const f = box.querySelector("#mePw"); f.hidden = !f.hidden; if (!f.hidden) f.current.focus(); };
-  box.querySelector("#mePw").onsubmit = async (e) => {
-    e.preventDefault();
-    const f = e.target;
+  const on = (sel, ev, fn) => { const el = box.querySelector(sel); if (el) el.addEventListener(ev, fn); };
+  on("#meLogout", "click", () => logout(false));
+  on("#meLogoutAll", "click", () => logout(true));
+  box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => {
+    const f = box.querySelector("#" + b.dataset.open); f.hidden = !f.hidden; if (!f.hidden) f.querySelector("input").focus();
+  }));
+  on("#mePw", "submit", async (e) => {
+    e.preventDefault(); const f = e.target;
     if (f.password.value !== f.password2.value) return toast("Les deux mots de passe ne sont pas identiques.");
     try { await api("/auth/password", { method: "POST", body: { current: f.current.value, password: f.password.value } }); toast("Mot de passe changé"); loadMe(); }
     catch (err) { toast(err.message); }
+  });
+  on("#meMail", "submit", async (e) => {
+    e.preventDefault(); const f = e.target;
+    try { await api("/auth/email", { method: "POST", body: { email: f.email.value, current: f.current.value } }); toast("Adresse mail changée"); loadMe(); }
+    catch (err) { toast(err.message); }
+  });
+  const showRecovery = (codes) => {
+    box.querySelector("#meTotp").innerHTML = `<div class="banner recov"><b>Tes codes de secours</b><p class="small">Chacun permet de te connecter une fois sans ton téléphone. Garde-les en lieu sûr (gestionnaire de mots de passe, papier) : ils ne seront plus affichés.</p>
+      <pre class="codes">${codes.map(esc).join("\n")}</pre><div class="row2"><button class="btn ghost" id="recCopy" type="button">Copier</button><button class="btn" id="recDone" type="button">C’est noté</button></div></div>`;
+    box.querySelector("#recCopy").onclick = () => navigator.clipboard?.writeText(codes.join("\n")).then(() => toast("Codes copiés"));
+    box.querySelector("#recDone").onclick = () => loadMe();
   };
+  on("#meRec", "submit", async (e) => {
+    e.preventDefault();
+    try { const r = await api("/auth/totp/recovery", { method: "POST", body: { password: e.target.password.value } }); e.target.hidden = true; showRecovery(r.recovery); }
+    catch (err) { toast(err.message); }
+  });
+  on("#meOff", "submit", async (e) => {
+    e.preventDefault();
+    try { await api("/auth/totp/disable", { method: "POST", body: { password: e.target.password.value } }); toast("Double authentification désactivée"); loadMe(); }
+    catch (err) { toast(err.message); }
+  });
+  on("#meTotpStart", "click", async () => {
+    let r; try { r = await api("/auth/totp/start", { method: "POST" }); } catch (err) { return toast(err.message); }
+    const t = box.querySelector("#meTotp");
+    t.innerHTML = `<ol class="totpsteps">
+        <li>Ouvre ton application d’authentification et scanne ce QR code :<div class="qr">${r.svg}</div>
+          <span class="small">Sur ce téléphone ? <a href="${esc(r.uri)}">Ouvre-le directement</a>, ou saisis la clé à la main : <code>${esc(r.secret)}</code></span></li>
+        <li>Tape le code à 6 chiffres qu’elle affiche :
+          <form class="codeRow" id="totpForm"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" required><button class="btn" type="submit">Activer</button></form></li>
+      </ol>`;
+    box.querySelector("#meTotpStart").hidden = true;
+    const f = t.querySelector("#totpForm");
+    f.code.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try { const res = await api("/auth/totp/enable", { method: "POST", body: { code: f.code.value } }); me.user.totp = true; toast("Double authentification activée"); showRecovery(res.recovery); }
+      catch (err) { toast(err.message); }
+    };
+  });
 }
 
 let users = [];
@@ -803,16 +862,16 @@ async function loadUsers() {
 function renderUsers() {
   const box = $("#usersBlock");
   box.innerHTML = `<div class="users">${users.map((u) => `<div class="user">
-      <span class="who"><b>${esc(u.username)}</b><span class="small">${u.admin ? "administrateur · " : ""}créé le ${new Date(u.createdAt).toLocaleDateString("fr-FR")}</span></span>
-      <span class="uacts"><button class="btn ghost" data-pw="${esc(u.id)}" type="button">Mot de passe</button>${u.id === me.user.id ? "" : `<button class="btn ghost" data-adm="${esc(u.id)}" type="button">${u.admin ? "Retirer admin" : "Admin"}</button><button class="btn danger" data-del="${esc(u.id)}" type="button">Supprimer</button>`}</span>
+      <span class="who"><b>${esc(u.username)}</b><span class="small">${u.admin ? "administrateur · " : ""}${u.totp ? "double auth. · " : ""}créé le ${new Date(u.createdAt).toLocaleDateString("fr-FR")}</span></span>
+      <span class="uacts"><button class="btn ghost" data-pw="${esc(u.id)}" type="button">Mot de passe</button><button class="btn ghost" data-mail="${esc(u.id)}" type="button">Adresse</button>${u.totp && u.id !== me.user.id ? `<button class="btn ghost" data-totp="${esc(u.id)}" type="button">Retirer 2FA</button>` : ""}${u.id === me.user.id ? "" : `<button class="btn ghost" data-adm="${esc(u.id)}" type="button">${u.admin ? "Retirer admin" : "Admin"}</button><button class="btn danger" data-del="${esc(u.id)}" type="button">Supprimer</button>`}</span>
     </div>`).join("")}</div>
     <form class="userform" id="userAdd">
       <b>Ajouter un compte</b>
-      <input name="username" placeholder="Identifiant" autocomplete="off" autocapitalize="none" spellcheck="false" required minlength="2" maxlength="32">
+      <input name="username" type="email" placeholder="Adresse mail" autocomplete="off" autocapitalize="none" spellcheck="false" required maxlength="254">
       <input name="password" type="password" placeholder="Mot de passe provisoire (10 caractères min.)" autocomplete="new-password" required minlength="10">
       <label class="chk"><input type="checkbox" name="admin"> Administrateur (peut gérer les comptes)</label>
       <div class="row2"><button class="btn" type="submit">Créer le compte</button></div>
-      <p class="small">Donne l’identifiant et le mot de passe à la personne : elle pourra le changer dans ses Réglages, puis connecter son propre compte Claude.</p>
+      <p class="small">Donne l’adresse et le mot de passe à la personne : elle pourra le changer dans ses Réglages, activer la double authentification, puis connecter son propre compte Claude.</p>
     </form>`;
   const byId = (id) => users.find((u) => u.id === id);
   box.querySelectorAll("[data-pw]").forEach((b) => (b.onclick = async () => {
@@ -820,6 +879,17 @@ function renderUsers() {
     const pw = prompt(`Nouveau mot de passe pour ${u.username} (10 caractères minimum) :`);
     if (!pw) return;
     try { await api(`/users/${u.id}`, { method: "PATCH", body: { password: pw } }); toast("Mot de passe changé"); } catch (e) { toast(e.message); }
+  }));
+  box.querySelectorAll("[data-mail]").forEach((b) => (b.onclick = async () => {
+    const u = byId(b.dataset.mail);
+    const v = prompt(`Nouvelle adresse mail de connexion pour ${u.username} :`, u.username.includes("@") ? u.username : "");
+    if (!v) return;
+    try { await api(`/users/${u.id}`, { method: "PATCH", body: { username: v } }); toast("Adresse changée"); loadUsers(); loadMe(); } catch (e) { toast(e.message); }
+  }));
+  box.querySelectorAll("[data-totp]").forEach((b) => (b.onclick = async () => {
+    const u = byId(b.dataset.totp);
+    if (!confirm(`Retirer la double authentification de « ${u.username} » ? (par exemple s’il a perdu son téléphone) Il pourra la réactiver dans ses Réglages.`)) return;
+    try { await api(`/users/${u.id}`, { method: "PATCH", body: { totp: false } }); toast("Double authentification retirée"); loadUsers(); } catch (e) { toast(e.message); }
   }));
   box.querySelectorAll("[data-adm]").forEach((b) => (b.onclick = async () => {
     const u = byId(b.dataset.adm);

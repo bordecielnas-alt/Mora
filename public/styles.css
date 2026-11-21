@@ -158,12 +158,12 @@ a.act{text-decoration:none}
 
 /* --- Compte Claude --- */
 .acct{display:flex;flex-direction:column;gap:10px}
-.acct .state,#meBlock .state{display:flex;align-items:center;gap:10px;font-weight:600}
+.acct .state,#meBlock > .state{display:flex;align-items:center;gap:10px;font-weight:600}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
 .dot.ok{background:var(--keep)} .dot.wait{background:var(--accent)} .dot.err{background:var(--toss)}
 .acct ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px}
-.acct .codeRow{display:flex;gap:8px}
-.acct .codeRow input{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit;font-family:var(--f-mono);font-size:13px;background:var(--bg);color:var(--ink)}
+.acct .codeRow,.totpsteps .codeRow{display:flex;gap:8px}
+.acct .codeRow input,.totpsteps .codeRow input{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit;font-family:var(--f-mono);font-size:13px;background:var(--bg);color:var(--ink)}
 .acct .row2{display:flex;gap:8px;flex-wrap:wrap}
 a.btn{text-decoration:none;display:inline-block;text-align:center}
 .banner .btn{margin-top:8px;padding:8px 14px}
@@ -276,3 +276,13 @@ h2.h3{margin-top:22px;font-size:17px}
 .userform .chk{flex-direction:row;align-items:center;gap:8px;font-weight:500}
 .btn.danger{background:var(--toss);color:#fff}
 #meBlock .row2,.userform .row2,.pwform .row2{display:flex;gap:8px;flex-wrap:wrap}
+.twofa{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.twofa .state{display:flex;align-items:center;gap:10px;font-weight:600}
+#meBlock .state span b{word-break:break-all}
+.totpsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:12px}
+.qr{background:#fff;border-radius:10px;padding:6px;width:200px;max-width:100%;margin:8px 0}
+.qr svg{display:block;width:100%;height:auto}
+.totpsteps code{font-family:var(--f-mono);font-size:12px;word-break:break-all;user-select:all}
+.banner.recov{display:flex;flex-direction:column;gap:8px;margin-top:0}
+.codes{font-family:var(--f-mono);font-size:14px;background:var(--surface);border-radius:8px;padding:10px 12px;margin:0;columns:2;line-height:1.7;user-select:all}
+.twofa .row2{display:flex;gap:8px;flex-wrap:wrap}

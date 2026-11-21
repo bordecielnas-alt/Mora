@@ -504,6 +504,11 @@ async function authApi(req, res, pathname, body) {
   if (R("POST", /^\/api\/auth\/logout$/)) return reply(res, auth.logout(req, res, { everywhere: !!body.everywhere }));
   if (!s) return send(res, 401, { error: "Connecte-toi.", auth: true });
   if (R("POST", /^\/api\/auth\/password$/)) return reply(res, auth.changePassword(req, res, s, body));
+  if (R("POST", /^\/api\/auth\/email$/)) return reply(res, auth.changeEmail(req, s, body));
+  if (R("POST", /^\/api\/auth\/totp\/start$/)) return reply(res, auth.totpStart(s));
+  if (R("POST", /^\/api\/auth\/totp\/enable$/)) return reply(res, auth.totpEnable(req, s, body));
+  if (R("POST", /^\/api\/auth\/totp\/disable$/)) return reply(res, auth.totpDisable(req, s, body));
+  if (R("POST", /^\/api\/auth\/totp\/recovery$/)) return reply(res, auth.newRecovery(req, s, body));
   // Gestion des comptes : administrateurs seulement.
   if (!s.user.admin) return send(res, 403, { error: "Réservé aux administrateurs." });
   if (R("GET", /^\/api\/users$/)) return send(res, 200, auth.list());

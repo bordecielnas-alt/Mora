@@ -27,16 +27,22 @@ et connecte ton compte Claude dans **Réglages** (voir plus bas).
 Avec Docker (ou dès que Mora n'écoute plus seulement sur `127.0.0.1`), il faut se connecter. Chaque compte a **son propre
 fil, ses gardés, ses réglages et connecte son propre compte Claude** : les recherches de chacun comptent dans son abonnement.
 
+On se connecte avec son **adresse mail** et son mot de passe (aucun mail n'est envoyé : l'adresse sert d'identifiant).
+
 1. **Premier lancement** : ouvre Mora et crée le compte administrateur avec le **code d'installation** affiché dans les logs
-   (sur Unraid : icône du conteneur › Logs). Ou bien renseigne `MORA_ADMIN_USER` et `MORA_ADMIN_PASSWORD` avant le premier
-   lancement : le compte est alors créé tout seul (ces variables ne servent plus ensuite).
-2. **Ajouter quelqu'un** : Réglages › Comptes › Ajouter un compte, avec un mot de passe provisoire. La personne se connecte,
-   change son mot de passe dans Réglages et connecte son compte Claude.
-3. **Mot de passe oublié** : un administrateur lui en donne un nouveau (Réglages › Comptes › Mot de passe).
+   (sur Unraid : icône du conteneur › Logs). Ou bien renseigne `MORA_ADMIN_USER` (ton adresse mail) et `MORA_ADMIN_PASSWORD`
+   avant le premier lancement : le compte est alors créé tout seul (ces variables ne servent plus ensuite).
+2. **Ajouter quelqu'un** : Réglages › Comptes › Ajouter un compte, avec son adresse mail et un mot de passe provisoire.
+   La personne se connecte, change son mot de passe dans Réglages et connecte son compte Claude.
+3. **Double authentification** (conseillée si Mora est accessible depuis Internet) : Réglages › Double authentification ›
+   Activer, puis scanne le QR code avec une application d'authentification (Google Authenticator, Microsoft Authenticator,
+   Aegis, 1Password…). Mora donne alors 10 **codes de secours**, à garder en lieu sûr : chacun permet une connexion sans le téléphone.
+4. **Mot de passe oublié ou téléphone perdu** : un administrateur donne un nouveau mot de passe ou retire la double
+   authentification (Réglages › Comptes).
 
 Si tu utilisais déjà Mora avant les comptes, tes données et ta connexion Claude passent au compte administrateur.
 
-Sécurité : mots de passe hachés (scrypt), sessions par cookie `HttpOnly` (et `Secure` derrière un proxy HTTPS),
+Sécurité : mots de passe hachés (scrypt), double authentification TOTP (codes à usage unique, codes de secours hachés), sessions par cookie `HttpOnly` (et `Secure` derrière un proxy HTTPS),
 déconnexion de tous les appareils au changement de mot de passe, blocage progressif après 5 essais ratés,
 requêtes venant d'autres sites refusées. Il n'y a pas d'inscription libre : seul un administrateur crée des comptes.
 
@@ -114,7 +120,7 @@ En mode local, tout est dans `data/mora.json` sur ta machine. Avec les comptes, 
 server.js          serveur HTTP + API (aucune dépendance hors SDK Claude)
 lib/store.js       stockage JSON
 lib/learn.js       poids appris et score de classement
-lib/auth.js        comptes Mora : mots de passe, sessions, administration
+lib/auth.js        comptes Mora : mots de passe, double authentification, sessions, administration
 lib/context.js     compte en cours pour chaque requête (multi-comptes)
 lib/account.js     connexion du compte Claude de chaque compte (pilote `claude auth login`)
 lib/discover-cli.js recherche via Claude Code (abonnement)

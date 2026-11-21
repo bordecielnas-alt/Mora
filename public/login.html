@@ -28,11 +28,17 @@
     <form class="block authform" id="loginForm" hidden>
       <h2>Connexion</h2>
       <p class="sub">Connecte-toi pour retrouver ton fil.</p>
-      <label>Identifiant<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
-      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      <div data-step="1">
+        <label>Adresse mail<input name="username" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+        <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      </div>
+      <div data-step="2" hidden>
+        <label>Code de ton application d’authentification<input name="code" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="11">
+          <span class="small">Le code à 6 chiffres affiché pour Mora. Téléphone perdu ? Utilise un de tes codes de secours.</span></label>
+      </div>
       <div class="banner err" data-err hidden></div>
       <button class="btn" type="submit">Se connecter</button>
-      <p class="small">Pas de compte ? Demande à la personne qui gère ce Mora de t’en créer un.</p>
+      <p class="small">Mot de passe oublié ou pas de compte ? Demande à la personne qui gère ce Mora de t’en créer un.</p>
     </form>
 
     <form class="block authform" id="setupForm" hidden>
@@ -40,7 +46,7 @@
       <p class="sub">Crée le compte administrateur. Tu pourras ensuite ajouter d’autres comptes dans Réglages ; chacun aura son propre fil et connectera son propre compte Claude.</p>
       <label>Code d’installation<input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
         <span class="small">Affiché dans les logs de Mora au démarrage (sur Unraid : icône du conteneur › Logs).</span></label>
-      <label>Identifiant<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="2" maxlength="32"></label>
+      <label>Adresse mail<input name="username" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="254"></label>
       <label>Mot de passe<input name="password" type="password" autocomplete="new-password" required minlength="10">
         <span class="small">10 caractères minimum. Une phrase de quelques mots, c’est très bien.</span></label>
       <label>Confirme le mot de passe<input name="password2" type="password" autocomplete="new-password" required minlength="10"></label>

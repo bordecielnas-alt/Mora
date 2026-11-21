@@ -11,11 +11,20 @@ function wire(form, run) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     errBox.hidden = true; btn.disabled = true;
-    try { await run(Object.fromEntries(new FormData(form))); location.replace("/"); }
+    try { if ((await run(Object.fromEntries(new FormData(form)))) !== "wait") location.replace("/"); else btn.disabled = false; }
     catch (err) { errBox.textContent = err.message; errBox.hidden = false; btn.disabled = false; }
   });
 }
-wire($("#loginForm"), (f) => post("login", { username: f.username, password: f.password }));
+// Connexion en deux temps si la double authentification est active : mot de passe, puis code.
+wire($("#loginForm"), async (f) => {
+  const form = $("#loginForm"), step2 = form.querySelector("[data-step='2']");
+  const r = await post("login", { username: f.username, password: f.password, code: step2.hidden ? undefined : f.code });
+  if (r.totp) {
+    form.querySelector("[data-step='1']").hidden = true; step2.hidden = false;
+    form.code.required = true; form.code.focus();
+    return "wait";
+  }
+});
 wire($("#setupForm"), (f) => {
   if (f.password !== f.password2) throw new Error("Les deux mots de passe ne sont pas identiques.");
   return post("setup", { code: f.code, username: f.username, password: f.password });

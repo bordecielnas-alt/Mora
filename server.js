@@ -234,12 +234,21 @@ function nextPage(n = PAGE, maxMin = 0) {
   maybeRefresh("réserve basse");
   return fresh;
 }
+// Déjà vu (signalé par le client lors d'une visite précédente) : quitte le fil au chargement suivant,
+// sauf ce que tu as gardé ou aimé, qui reste toujours.
+const stays = (i) => !i.seenAt || i.liked || i.status === "keep";
 function streamView() {
   const since = Date.now() - 3 * 86400e3;
   return S().items
-    // Déjà vu (resté à l'écran lors d'une visite précédente) : n'apparaît plus dans le fil.
-    .filter((i) => i.shownAt && !i.seenAt && Date.parse(i.shownAt) >= since && ["shown", "keep"].includes(i.status))
+    .filter((i) => i.shownAt && stays(i) && Date.parse(i.shownAt) >= since && ["shown", "keep"].includes(i.status))
     .sort((a, b) => a.shownAt.localeCompare(b.shownAt));
+}
+const SEEN_DAYS = 7;
+function seenView() {
+  const since = Date.now() - SEEN_DAYS * 86400e3;
+  return S().items
+    .filter((i) => i.seenAt && Date.parse(i.seenAt) >= since && ["shown", "keep"].includes(i.status))
+    .sort((a, b) => b.seenAt.localeCompare(a.seenAt));
 }
 function status() {
   return {
@@ -251,7 +260,9 @@ function status() {
 const routes = [
   ["GET", /^\/api\/status$/, () => status()],
   ["GET", /^\/api\/stream$/, () => ({ items: streamView().map(pub), ...status() })],
-  // Le client signale les posts restés visibles à l'écran : ils ne reviendront plus dans le fil.
+  // Onglet « Déjà vu » : ce que tu as vu ces 7 derniers jours.
+  ["GET", /^\/api\/seen$/, () => seenView().map(pub)],
+  // Le client signale les posts vus (sortis par le haut de l'écran) : ils ne reviendront plus dans le fil.
   ["POST", /^\/api\/items\/seen$/, (m, body) => {
     const ids = new Set(Array.isArray(body.ids) ? body.ids.slice(0, 200).map(String) : []);
     const now = new Date().toISOString();

@@ -34,12 +34,20 @@
   <main>
     <section class="view" id="v-tri">
       <div class="row"><h2>Pour toi</h2><span class="mono" id="count"></span></div>
-      <p class="sub">Fais défiler. Ce que tu as vu ne revient pas. ♥ J’aime pour dire ce qui te plaît, le signet pour garder, « Pas pour moi » pour masquer. Touche l’image pour ouvrir le contenu, double-tape pour aimer.</p>
-      <div class="filters timef" id="timeFilter" aria-label="Temps disponible">
-        <span class="lbl">J’ai</span><button data-min="0">Tout le temps</button><button data-min="5">5 min</button><button data-min="15">15 min</button><button data-min="45">45 min</button></div>
-      <div id="banner"></div>
-      <div class="stream" id="stream"></div>
-      <div class="more" id="more"></div>
+      <p class="sub">Fais défiler. Ce que tu as vu ne revient pas (sauf ce que tu as aimé ou gardé). ♥ J’aime pour dire ce qui te plaît, le signet pour garder, « Pas pour moi » pour masquer. Touche l’image pour ouvrir le contenu, double-tape pour aimer.</p>
+      <div class="seg" id="feedSeg" role="tablist" aria-label="Fil">
+        <button role="tab" data-seg="new" aria-selected="true">Nouveautés</button><button role="tab" data-seg="seen" aria-selected="false">Déjà vu</button></div>
+      <div id="feedNew">
+        <div class="filters timef" id="timeFilter" aria-label="Temps disponible">
+          <span class="lbl">J’ai</span><button data-min="0">Tout le temps</button><button data-min="5">5 min</button><button data-min="15">15 min</button><button data-min="45">45 min</button></div>
+        <div id="banner"></div>
+        <div class="stream" id="stream"></div>
+        <div class="more" id="more"></div>
+      </div>
+      <div id="feedSeen" hidden>
+        <p class="sub seen-sub">Ce que tu as vu ces 7 derniers jours, le plus récent en haut. Pratique si tu as fait défiler trop vite.</p>
+        <div class="stream" id="seenList"></div>
+      </div>
     </section>
 
     <section class="view" id="v-feed" hidden>

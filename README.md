@@ -82,6 +82,10 @@ En mode local, la connexion est celle de Claude Code : si tu utilises déjà Cla
   pour ouvrir le contenu dans un nouvel onglet, double-tape l'image pour l'aimer. « Pas pour moi » le retire du fil ; tu peux dire
   pourquoi (déjà vu, trop long, source bof, sujet hors cible, trop basique), et le feed n'ajuste alors que ce qui compte.
   « J'ai 5 / 15 / 45 min » ne montre que ce qui tient dans ce temps.
+  **Déjà vu** : une carte compte comme vue quand elle sort par le haut de l'écran pendant que tu descends, après être restée
+  au moins une seconde à moitié visible (un survol rapide ne compte pas) ; une vidéo lancée compte aussi. Elle ne disparaît
+  pas sous ton doigt : elle quitte le fil au prochain chargement, sauf si tu l'as aimée ou gardée. L'onglet « Déjà vu »,
+  à côté de « Nouveautés », retrouve tout ce que tu as vu ces 7 derniers jours.
   Les vidéos YouTube et Vimeo montrent leur miniature et se lancent en muet quand elles sont à l'écran (réglable dans Réglages › Apparence).
   Le bouton de partage ouvre le menu de partage du téléphone (ou copie le lien sur l'ordinateur).
   Avant d'arriver dans le fil, chaque lien est vérifié : les pages mortes ou réservées aux abonnés sont écartées.

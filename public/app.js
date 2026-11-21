@@ -43,7 +43,7 @@ function toast(m, action) {
 }
 
 const state = { stream: [], status: {}, kept: [], themes: [], weights: { theme: {}, type: {} }, decisions: 0, loading: false, prefs: null, langs: {}, hidden: [],
-  suggestions: [], quests: [], justTossed: null, maxMin: 0, exhausted: false };
+  suggestions: [], quests: [], justTossed: null, maxMin: 0, exhausted: false, seen: [], seg: "new" };
 const SHARE = '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>';
 const REASONS = [["seen", "Déjà vu"], ["long", "Trop long"], ["source", "Source bof"], ["topic", "Sujet hors cible"], ["basic", "Trop basique"]];
 // Durée en minutes (« 8 min », « 12:30 », « 1:02:00 », « 1 h 20 ») ; null si inconnue. Même règle que le serveur.
@@ -57,7 +57,7 @@ function durationMin(d) {
   return null;
 }
 const fits = (p) => !state.maxMin || (durationMin(p.duration) ?? Infinity) <= state.maxMin;
-const findItem = (id) => state.stream.find((x) => x.id === id) || state.quests.flatMap((q) => q.items).find((x) => x.id === id);
+const findItem = (id) => state.stream.find((x) => x.id === id) || state.seen.find((x) => x.id === id) || state.quests.flatMap((q) => q.items).find((x) => x.id === id);
 
 /* ---------------- Pour toi ---------------- */
 function postHTML(p) {
@@ -137,13 +137,14 @@ const videoObs = "IntersectionObserver" in window ? new IntersectionObserver((en
 function pickVideo() {
   let best = null, r = 0.6;
   for (const [el, v] of ratios) { if (!el.isConnected) { ratios.delete(el); continue; } if (v >= r) { best = el; r = v; } }
-  const off = !autoplayOn() || $("#v-tri").hidden;
+  const off = !autoplayOn() || $("#v-tri").hidden || state.seg !== "new";
   const cur = playing?.isConnected ? ratios.get(playing) || 0 : 0;
   if (playing && (off || cur < 0.3)) stopVideo(playing); // on garde la vidéo en cours tant qu'elle reste un peu visible
   if (!off && best && !playing) playVideo(best);
 }
 function playVideo(m) {
   if (playing) stopVideo(playing);
+  markSeen(m.closest(".post")?.dataset.id); // une vidéo lancée compte comme vue
   const f = document.createElement("iframe");
   f.src = m.dataset.embed; f.className = "embed"; f.title = "Lecture de la vidéo";
   f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
@@ -227,9 +228,15 @@ async function loadNewest() {
   state.exhausted = false;
   await loadMore();
 }
-// « Déjà vu » : un post resté au moins 1,5 s à l'écran est signalé au serveur. Il reste affiché
-// pendant cette visite, mais ne reviendra plus dans le fil au prochain chargement.
-const seenSent = new Set(), seenQueue = new Set(), seenTimers = new Map();
+// « Déjà vu » : une carte est vue quand elle sort entièrement par le haut de l'écran pendant que tu
+// descends, après être restée au moins 1 s à moitié visible (un survol rapide ne compte pas).
+// Une vidéo lancée compte aussi. La carte reste affichée pendant cette visite et quitte le fil au
+// prochain chargement (sauf si elle est aimée ou gardée). Le serveur garde la date pour l'onglet « Déjà vu ».
+const SEEN_DWELL = 1000;
+const seenSent = new Set(), seenQueue = new Set(), seenTimers = new Map(), dwelt = new Set();
+function markSeen(id) { if (id && !seenSent.has(id)) { seenSent.add(id); seenQueue.add(id); } }
+let lastTop = 0, scrollingDown = false;
+$("main").addEventListener("scroll", () => { const t = $("main").scrollTop; if (t !== lastTop) scrollingDown = t > lastTop; lastTop = t; }, { passive: true });
 function flushSeen(beacon = false) {
   if (!seenQueue.size) return;
   const ids = [...seenQueue]; seenQueue.clear();
@@ -240,11 +247,17 @@ function flushSeen(beacon = false) {
 const seenObs = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
   for (const e of entries) {
     const id = e.target.dataset.id; if (!id || seenSent.has(id)) continue;
-    if (e.isIntersecting && e.intersectionRatio >= 0.6) {
-      if (!seenTimers.has(id)) seenTimers.set(id, setTimeout(() => { seenTimers.delete(id); seenSent.add(id); seenQueue.add(id); }, 1500));
-    } else { clearTimeout(seenTimers.get(id)); seenTimers.delete(id); }
+    if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+      // au moins 1 s à moitié visible : la carte a vraiment été regardée
+      if (!dwelt.has(id) && !seenTimers.has(id)) seenTimers.set(id, setTimeout(() => { seenTimers.delete(id); dwelt.add(id); }, SEEN_DWELL));
+    } else {
+      clearTimeout(seenTimers.get(id)); seenTimers.delete(id);
+      // sortie complète par le haut en descendant, après avoir été regardée : vue
+      const gone = !e.isIntersecting && e.rootBounds && e.boundingClientRect.bottom <= e.rootBounds.top + 1;
+      if (gone && scrollingDown && dwelt.has(id)) markSeen(id);
+    }
   }
-}, { root: $("main"), threshold: [0, 0.6] }) : null;
+}, { root: $("main"), threshold: [0, 0.5] }) : null;
 function observeSeen() { if (seenObs) $("#stream").querySelectorAll(".post[data-id]").forEach((el) => { if (!seenSent.has(el.dataset.id)) seenObs.observe(el); }); }
 setInterval(() => flushSeen(), 4000);
 addEventListener("pagehide", () => flushSeen(true));
@@ -261,10 +274,32 @@ try { state.maxMin = Number(localStorage.getItem("mora-maxmin")) || 0; } catch {
 
 function checkSentinel() {
   const m = $("main"), r = $("#more").getBoundingClientRect(), mr = m.getBoundingClientRect();
-  if (!$("#v-tri").hidden && r.top < mr.bottom + 300) loadMore();
+  if (!$("#v-tri").hidden && state.seg === "new" && r.top < mr.bottom + 300) loadMore();
 }
 
-function renderAllPosts() { renderStream(); renderQuests(); }
+function renderAllPosts() { renderStream(); renderQuests(); renderSeen(); }
+
+// Onglet « Déjà vu » (7 derniers jours), à côté des nouveautés.
+async function loadSeen() {
+  try { state.seen = (await api("/seen")).map((i) => state.stream.find((s) => s.id === i.id) || i); } // même objet que dans le fil : un ♥ ici se voit là-bas
+  catch (e) { toast(e.message); }
+  renderSeen();
+}
+function renderSeen() {
+  const box = $("#seenList"); if (!box) return;
+  const items = state.seen.filter((p) => p.status !== "removed" && (p.status !== "toss" || p.id === state.justTossed));
+  if (!items.length) { box.innerHTML = `<div class="empty-stream">Rien de vu ces 7 derniers jours. Une carte compte comme vue quand tu la fais défiler vers le haut après l’avoir regardée au moins une seconde.</div>`; return; }
+  patchList(box, items);
+}
+function setSeg(seg) {
+  state.seg = seg;
+  $("#feedSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.seg === seg));
+  $("#feedNew").hidden = seg !== "new"; $("#feedSeen").hidden = seg !== "seen";
+  if (playing) stopVideo(playing);
+  if (seg === "seen") { flushSeen(); setTimeout(loadSeen, 150); }
+  else { pickVideo(); checkSentinel(); }
+}
+$("#feedSeg").addEventListener("click", (e) => { const b = e.target.closest("[data-seg]"); if (b) setSeg(b.dataset.seg); });
 
 let tossTimer = null;
 async function decide(id, decision) {
@@ -339,7 +374,7 @@ function onPostsDbl(e) {
   const p = findItem(m.dataset.dbl);
   if (p && !p.liked) setTimeout(() => like(p.id, true), 300);
 }
-for (const el of [$("#stream"), $("#questList")]) { el.addEventListener("click", onPostsClick); el.addEventListener("dblclick", onPostsDbl); }
+for (const el of [$("#stream"), $("#questList"), $("#seenList")]) { el.addEventListener("click", onPostsClick); el.addEventListener("dblclick", onPostsDbl); }
 $("main").addEventListener("scroll", checkSentinel, { passive: true });
 
 async function startRefresh() {

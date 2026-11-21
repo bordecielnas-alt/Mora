@@ -337,3 +337,5 @@ h2.h3{margin-top:22px;font-size:17px}
 /* lecteur : invisible tant qu'il charge, la miniature reste à l'écran */
 .media iframe.embed{opacity:0;transition:opacity .3s;background:transparent}
 .media iframe.embed.ready{opacity:1;background:#000}
+.pubinfo b{font-weight:600;color:var(--ink)}
+.pubinfo .host{opacity:.8}

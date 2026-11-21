@@ -75,7 +75,7 @@ function postHTML(p) {
       <span class="type">${ICON[p.type] || ICON.lien}${TYPE_LABEL[p.type] || "Lien"}</span>${p.duration ? `<span class="dur">${esc(p.duration)}</span>` : ""}
       <span class="pop"><svg viewBox="0 0 24 24"><g fill="currentColor">${HEART}</g></svg></span></div>
     <div class="pb"><h3 class="title"${orig}><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${esc(p.title)}</a></h3>${p.excerpt ? `<p class="excerpt">${esc(p.excerpt)}</p>` : ""}
-      ${p.why ? `<span class="why">Pourquoi ça : <b>${esc(p.why)}</b></span>` : ""}</div>
+      <span class="why pubinfo">${pubLine(p)}</span></div>
     <div class="acts">
       <button class="act like" data-like="${p.id}" aria-pressed="${liked}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">${HEART}</svg>J’aime</button>
       <button class="act" data-toss="${p.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>Pas pour moi</button>
@@ -83,6 +83,20 @@ function postHTML(p) {
       <button class="act icon" data-share="${p.id}" aria-label="Partager" title="Partager"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SHARE}</svg></button>
       <a class="act open" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir la source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
     </div></article>`;
+}
+
+// Sous le résumé : date de publication et source (nom et site).
+const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+function pubDate(d) {
+  const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return "";
+  const y = Number(m[1]), mo = Number(m[2]) - 1, day = Number(m[3]);
+  return `${day === 1 ? "1er" : day} ${MONTHS[mo]}${y !== new Date().getFullYear() ? " " + y : ""}`;
+}
+function pubLine(p) {
+  let host = ""; try { host = new URL(p.url).hostname.replace(/^(www|m)\./, ""); } catch {}
+  const src = p.source || host, showHost = host && !norm(src).replace(/\s/g, "").includes(norm(host.split(".").slice(-2, -1)[0] || host));
+  const d = pubDate(p.published);
+  return `${d ? `Publié le <b>${d}</b>` : "Date de publication inconnue"} · <b>${esc(src)}</b>${showHost ? ` <span class="host">(${esc(host)})</span>` : ""}`;
 }
 
 function tossedHTML(p) {
@@ -497,7 +511,7 @@ function renderKept() {
   $("#feed").innerHTML = list.length
     ? list.map((f) => `<button class="item" data-id="${f.id}">
         <span class="mini" style="background:${grad(f.theme)}">${ICON[f.type] || ICON.lien}</span>
-        <span class="meta"><span class="src"><span class="chip">${esc(f.theme)}</span>${TYPE_LABEL[f.type] || "Lien"}${f.duration ? " · " + esc(f.duration) : ""}${f.star ? ' <span class="star">★</span>' : ""}</span>
+        <span class="meta"><span class="src"><span class="chip">${esc(f.theme)}</span>${TYPE_LABEL[f.type] || "Lien"}${f.duration ? " · " + esc(f.duration) : ""}${f.published ? " · " + pubDate(f.published) : ""}${f.star ? ' <span class="star">★</span>' : ""}</span>
           <span class="t">${esc(f.title)}</span><span class="src">${esc(f.source)}</span>
           ${f.note ? `<span class="note">${esc(f.note)}</span>` : ""}</span></button>`).join("")
     : state.kept.length

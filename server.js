@@ -15,7 +15,7 @@ for (const [k, v] of Object.entries(process.env)) {
 const { Store, OUTSIDE, durationMin } = await import("./lib/store.js");
 const { learn, score, LIKE_FACTOR, tossEffect, REASONS, sourceMatch, hasBlockedWord } = await import("./lib/learn.js");
 const { translateTitles } = await import("./lib/translate.js");
-const { discover, checkPage, hasCredentials, MODEL, LANGS } = await import("./lib/discover.js");
+const { discover, checkPage, cleanDate, hasCredentials, MODEL, LANGS } = await import("./lib/discover.js");
 const { demoItems, DEMO_THEMES } = await import("./lib/demo.js");
 const { discoverWithCli } = await import("./lib/discover-cli.js");
 const { recordUsage, usageSummary } = await import("./lib/usage.js");
@@ -148,7 +148,9 @@ async function addFound(found, extra = {}) {
   fresh.forEach((raw, k) => {
     const c = checks[k];
     if (trust && !c.ok) { log(`Lien écarté (${c.reason}) : ${raw.url}`); return; }
-    Object.assign(U().store.addItem({ ...raw, ...extra, image: c.image || null }), { foundAt: batchAt, batch: batchAt });
+    // date de publication : celle de la page en priorité, sinon celle donnée par la recherche
+    const published = c.published || cleanDate(raw.published);
+    Object.assign(U().store.addItem({ ...raw, ...extra, image: c.image || null, published }), { foundAt: batchAt, batch: batchAt, datesChecked: true });
     added++;
   });
   return added;
@@ -207,6 +209,16 @@ function keptMarkdown() {
 }
 
 // ---------- traduction des anciens titres ----------
+// Contenus trouvés avant l'affichage des dates : on va lire leur date de publication sur la page, une fois, en arrière-plan.
+async function backfillDates() {
+  const todo = S().items.filter((i) => !i.published && !i.datesChecked && !i.demo && ["new", "shown", "keep", "quest"].includes(i.status)).slice(0, 80);
+  for (const i of todo) {
+    const c = await checkPage(i.url).catch(() => ({}));
+    i.datesChecked = true;
+    if (c.published) i.published = c.published;
+  }
+  if (todo.length) { U().store.save(); log(`Dates de publication : ${todo.filter((i) => i.published).length} sur ${todo.length} retrouvées.`); }
+}
 function translateOld() {
   const u = U();
   if (u.translating || !aiReady()) return;
@@ -625,7 +637,7 @@ server.listen(PORT, HOST, () => {
   if (BACKEND === "claude-code") console.log(`Claude Code ${CLI_VERSION} trouvé. Chaque compte connecte son abonnement Claude dans Réglages.`);
   else console.log(aiMode() ? `Recherche via ${BACKEND_LABEL}.` : "Mode démo : contenus d'exemple. Installe Claude Code (commande `claude`) et connecte-le à ton abonnement pour de vraies propositions.");
   console.log(`Recherche de contenus toutes les ${REFRESH_HOURS} h, ou quand il en reste moins de ${LOW_WATER}.`);
-  forEachUser(() => { maybeRefresh("démarrage"); translateOld(); });
+  forEachUser(() => { maybeRefresh("démarrage"); translateOld(); backfillDates(); });
   setInterval(() => forEachUser(() => maybeRefresh("planifié")), 15 * 60e3).unref();
 });
 

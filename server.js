@@ -505,7 +505,7 @@ async function authApi(req, res, pathname, body) {
   if (!s) return send(res, 401, { error: "Connecte-toi.", auth: true });
   if (R("POST", /^\/api\/auth\/password$/)) return reply(res, auth.changePassword(req, res, s, body));
   if (R("POST", /^\/api\/auth\/email$/)) return reply(res, auth.changeEmail(req, s, body));
-  if (R("POST", /^\/api\/auth\/totp\/start$/)) return reply(res, auth.totpStart(s));
+  if (R("POST", /^\/api\/auth\/totp\/start$/)) return reply(res, await auth.totpStart(s));
   if (R("POST", /^\/api\/auth\/totp\/enable$/)) return reply(res, auth.totpEnable(req, s, body));
   if (R("POST", /^\/api\/auth\/totp\/disable$/)) return reply(res, auth.totpDisable(req, s, body));
   if (R("POST", /^\/api\/auth\/totp\/recovery$/)) return reply(res, auth.newRecovery(req, s, body));
